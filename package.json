@@ -1,0 +1,30 @@
+{
+  "name": "ulmo-backend",
+  "version": "1.0.0",
+  "description": "Backend for Inventory Management",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --reporter spec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mightybulacs/ulmo-backend.git"
+  },
+  "keywords": [
+    "ulmo"
+  ],
+  "author": "Lloyd Verastigue <lloyd@codedisruptors.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mightybulacs/ulmo-backend/issues"
+  },
+  "homepage": "https://github.com/mightybulacs/ulmo-backend#readme",
+  "dependencies": {
+    "anytv-node-importer": "0.0.0",
+    "anytv-node-mysql": "0.0.48",
+    "crypto": "0.0.3",
+    "file-stream-rotator": "0.0.7",
+    "path": "^0.12.7",
+    "promise": "^8.0.2"
+  }
+}
