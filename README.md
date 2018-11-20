@@ -1,3 +1,3 @@
 # ulmo-backend
 
-Backend for Inventory Management
+Inventory Management Library
