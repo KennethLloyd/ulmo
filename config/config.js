@@ -19,7 +19,20 @@ module.exports = {
 	    user: 'root',
 	    password: 'pr0j3ct0r',
         database: 'sme_db'
+    },
 
+    jeeves_db_item_config: {
+        item_table: 'material',
+        item_id: 'id',
+        item_sku: 'code',
+        item_name: 'name'
+    },
+
+    jeeves_db_user_config: {
+        user_table: 'users',
+        user_id: 'id',
+        user_first_name: 'first_name',
+        user_last_name: 'last_name'
     }
     
 };
