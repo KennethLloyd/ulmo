@@ -16,6 +16,7 @@
 */
 
 
+/*
 DROP DATABASE IF EXISTS test;
 CREATE DATABASE test;
 
@@ -26,8 +27,9 @@ CREATE TABLE IF NOT EXISTS users (
     email    VARCHAR(50) NOT NULL,
     password VARCHAR(100) NOT NULL,
     fullname VARCHAR(100) NOT NULL,
-    /*...*/
+    
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     date_updated DATETIME DEFAULT NULL,
     deleted DATETIME DEFAULT NULL
 ) ENGINE=InnoDB;
+*/
