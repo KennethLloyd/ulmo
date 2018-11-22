@@ -68,5 +68,32 @@ module.exports = function(db_name) {
         })
     }
 
+    module.withdraw = (items, user_id) => {
+        return new Promise(function(resolve, reject) {
+            const data = [];
+            items.forEach(element => {
+                data.push(uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "WITHDRAW")
+            });
+            mysql.use(db)
+            .query(
+                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES (?)',
+                data,
+                function(err1, res1) {
+                    if (err1) {
+                        reject(err1);
+                    }
+
+                    else {
+                        const res = {}
+                        res["movement"] = data
+                        res["message"] = 'Item succesfully withdrawn'
+                        resolve(res);
+                    }
+                }
+            )
+            .end();
+        })
+    }
+
     return module;
 };
