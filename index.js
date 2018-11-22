@@ -43,9 +43,8 @@ module.exports = function(db_name) {
 
     module.deposit = (items, user_id) => {
         return new Promise(function(resolve, reject) {
-            const user_id = items.user_id;
             const data = [];
-            items.items.forEach(element => {
+            items.forEach(element => {
                 data.push(uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "DEPOSIT")
             });
             mysql.use(db)
