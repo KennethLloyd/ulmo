@@ -5,7 +5,7 @@ const config            = require(__dirname + '/config/config');
 const promise           = require('promise');
 const uuid              = require('uuid');
 
-mysql.add('jeeves_db', config.JEEVES_DB);
+mysql.add('bgw73vdwex88xb6h', config.bgw73vdwex88xb6h_DB);
 
 module.exports = function(db_name) {
     var module = {};
@@ -41,16 +41,18 @@ module.exports = function(db_name) {
         
     }
 
-    module.deposit = (items, user_id) => {
+    module.deposit = (data) => {
         return new Promise(function(resolve, reject) {
-            const data = [];
+            const input = [];
+            const items = data[0]
+            const user_id = data[1]
             items.forEach(element => {
-                data.push(uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "DEPOSIT")
+                input.push([uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "DEPOSIT"])
             });
             mysql.use(db)
             .query(
-                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES (?)',
-                data,
+                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES ?',
+                [input],
                 function(err1, res1) {
                     if (err1) {
                         reject(err1);
@@ -58,7 +60,7 @@ module.exports = function(db_name) {
 
                     else {
                         const res = {}
-                        res["movement"] = data
+                        res["movement"] = input
                         res["message"] = 'Item succesfully deposited'
                         resolve(res);
                     }
@@ -68,16 +70,18 @@ module.exports = function(db_name) {
         })
     }
 
-    module.withdraw = (items, user_id) => {
+    module.withdraw = (data) => {
         return new Promise(function(resolve, reject) {
-            const data = [];
+            const input = [];
+            const items = data[0]
+            const user_id = data[1]
             items.forEach(element => {
-                data.push(uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "WITHDRAW")
+                input.push([uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "WITHDRAW"])
             });
             mysql.use(db)
             .query(
-                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES (?)',
-                data,
+                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES ?',
+                [input],
                 function(err1, res1) {
                     if (err1) {
                         reject(err1);
@@ -85,7 +89,7 @@ module.exports = function(db_name) {
 
                     else {
                         const res = {}
-                        res["movement"] = data
+                        res["movement"] = input
                         res["message"] = 'Item succesfully withdrawn'
                         resolve(res);
                     }
@@ -97,3 +101,24 @@ module.exports = function(db_name) {
 
     return module;
 };
+
+module.exports('bgw73vdwex88xb6h').withdraw([
+    [
+        { id: '6abe0f64-e95d-11e8-9f32-f2801f1b9fd1',
+          quantity: 10,
+          location_id: '06882ccc-e93b-11e8-9f32-f2801f1b9fd1',
+          expiration_date: '', 
+          remarks: 'test'},
+        { id: '6abe0f64-e95d-11e8-9f32-f2801f1b9fd1',
+          quantity: 10,
+          location_id: '06882ccc-e93b-11e8-9f32-f2801f1b9fd1',
+          expiration_date: '', 
+          remarks : 'test2'}
+    ],
+    '3911bcca-e93c-11e8-9f32-f2801f1b9fd1'
+]).then(function(response) {
+    console.log(response)
+})
+.catch(function(err) {         
+    console.log(err)
+})
