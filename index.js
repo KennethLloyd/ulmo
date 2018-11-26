@@ -35,92 +35,6 @@ module.exports = function(db_name) {
         })
     };
 
-    module.save_current_inventory = (params) => {
-        return new Promise(function(resolve, reject) {
-            var inventory = [];
-            var balance_id = uuid.v4();
-            var current_location = null;
-
-            mysql.use(db)
-            .query(
-                'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
-                [balance_id, params.label, params.user_id],
-                get_details
-            )   
-
-            function get_details(err, result) {
-                if (!err) {
-                    var retrieve_params = {
-                        location_id: [],
-                        item_id: [],
-                        is_breakdown: 1,
-                        is_grouped: 0,
-                        page: -1,
-                        user_id: params.user_id
-                    }
-
-                    module.get_current_inventory(retrieve_params)
-                    .then(function(response) {
-                        inventory = response;
-                        async.each(inventory, prepare_save_details, send_response);
-                    })
-                    .catch(function(err) {           
-                        winston.error('Error in getting current inventory', err);           
-                        return next(err);
-                    })
-                }
-                else {
-                    console.log(err);
-                    reject(err); 
-                }
-            }
-
-            function prepare_save_details(row, callback) {
-                function send_callback(err, result) {
-                    if (err) {
-                        winston.error('Error in saving current inventory details', last_query);
-                        return callback(err);
-                    }
-                    return callback();
-                }
-                
-                if (row.items.length) {
-                    current_location = row.location_id;
-                    async.each(row.items, save_details, send_callback)
-                }
-                else {
-                    send_callback(null, null);
-                }
-            }
-
-            function save_details(row, callback) {
-                function send_callback(err, result) {
-                    if (err) {
-                        winston.error('Error in saving current inventory details', last_query);
-                        return callback(err);
-                    }
-                    return callback();
-                }
-                
-                mysql.use(db)
-                .query(
-                    'INSERT INTO im_balance_history_details(id, balance_id, location_id, item_id, expiration_date, quantity) VALUES (?,?,?,?,?,?)', 
-                    [uuid.v4(), balance_id, current_location, row.item_id, row.expiration_date, row.item_quantity],
-                    send_callback
-                )
-            }
-
-            function send_response(err, result) {
-                if (err) {
-                    reject(err);
-                }
-                else {
-                    resolve(inventory);
-                }
-            }
-        })
-    }
-
     module.get_current_inventory = (params) => {
         return new Promise(function(resolve, reject) {
             var response = [];
@@ -468,8 +382,130 @@ module.exports = function(db_name) {
         })
     }
 
-    module.sample_method = () => {
+    module.save_current_inventory = (params) => {
+        return new Promise(function(resolve, reject) {
+            var inventory = [];
+            var balance_id = uuid.v4();
+            var current_location = null;
 
+            mysql.use(db)
+            .query(
+                'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
+                [balance_id, params.label, params.user_id],
+                get_details
+            )   
+
+            function get_details(err, result) {
+                if (!err) {
+                    var retrieve_params = {
+                        location_id: [],
+                        item_id: [],
+                        is_breakdown: 1,
+                        is_grouped: 0,
+                        page: -1,
+                        user_id: params.user_id
+                    }
+
+                    module.get_current_inventory(retrieve_params)
+                    .then(function(response) {
+                        inventory = response;
+                        async.each(inventory, prepare_save_details, send_response);
+                    })
+                    .catch(function(err) {           
+                        winston.error('Error in getting current inventory', err);           
+                        return next(err);
+                    })
+                }
+                else {
+                    console.log(err);
+                    reject(err); 
+                }
+            }
+
+            function prepare_save_details(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        winston.error('Error in saving current inventory details', last_query);
+                        return callback(err);
+                    }
+                    return callback();
+                }
+                
+                if (row.items.length) {
+                    current_location = row.location_id;
+                    async.each(row.items, save_details, send_callback)
+                }
+                else {
+                    send_callback(null, null);
+                }
+            }
+
+            function save_details(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        winston.error('Error in saving current inventory details', last_query);
+                        return callback(err);
+                    }
+                    return callback();
+                }
+                
+                mysql.use(db)
+                .query(
+                    'INSERT INTO im_balance_history_details(id, balance_id, location_id, item_id, expiration_date, quantity) VALUES (?,?,?,?,?,?)', 
+                    [uuid.v4(), balance_id, current_location, row.item_id, row.expiration_date, row.item_quantity],
+                    send_callback
+                )
+            }
+
+            function send_response(err, result) {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(inventory);
+                }
+            }
+        })
+    }
+
+    module.get_balance_history = (params) => {
+        return new Promise(function(resolve, reject) {
+            mysql.use(db)
+            .query(
+                'SELECT * FROM im_balance_history WHERE user_id = ?',
+                [params.user_id],
+                function(err1, res1) {
+                    if (err1) {
+                        reject(err1);
+                    }
+
+                    else {
+                        resolve(res1);
+                    }
+                }
+            )
+            .end();
+        })
+    }
+
+    module.get_inventory = (params) => {
+        return new Promise(function(resolve, reject) {
+            mysql.use(db)
+            .query(
+                'SELECT * FROM im_balance_history_details WHERE balance_id = ?',
+                [params.balance_id],
+                function(err1, res1) {
+                    if (err1) {
+                        reject(err1);
+                    }
+
+                    else {
+                        resolve(res1);
+                    }
+                }
+            )
+            .end();
+        })
     }
 
     module.sample_method2 = () => {
