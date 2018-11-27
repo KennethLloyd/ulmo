@@ -470,10 +470,54 @@ module.exports = function(db_name) {
 
     module.get_balance_history = (params) => {
         return new Promise(function(resolve, reject) {
+            function format_date(date) {
+                if (date != null) {
+                    var dates = new Date(date);
+                    var year = dates.getFullYear();
+                    var month = dates.getMonth()+1;
+                    var dt = dates.getDate();
+        
+                    if (dt < 10) {
+                        dt = '0' + dt;
+                    }
+                    if (month < 10) {
+                        month = '0' + month;
+                    }
+        
+                    var hrs = dates.getHours();
+                    var mins = dates.getMinutes();
+                    var secs = dates.getSeconds();
+        
+                    if (hrs < 10) {
+                        hrs = '0' + hrs;
+                    }
+                    if (mins < 10) {
+                        mins = '0' + mins;
+                    }
+                    if (secs < 10) {
+                        secs = '0' + secs;
+                    }
+        
+                    var date_formatted = year + '-' + month + '-' + dt + " " + hrs + ":" + mins + ":" + secs;
+        
+                    return date_formatted;
+                }
+                else {
+                    return null;
+                }
+            }
+
+            if (typeof params.search === 'undefined' || params.search === undefined) {
+                params.search = '';
+            }
+
+            params.from_date = format_date(params.from_date);
+            params.to_date = format_date(params.to_date);
+
             mysql.use(db)
             .query(
-                'SELECT * FROM im_balance_history WHERE user_id = ?',
-                [params.user_id],
+                'SELECT * FROM im_balance_history WHERE user_id = ? AND label LIKE ? AND (created BETWEEN ? AND ?) LIMIT ?,?',
+                [params.user_id, "%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
                 function(err1, res1) {
                     if (err1) {
                         reject(err1);
