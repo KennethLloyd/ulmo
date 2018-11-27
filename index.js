@@ -43,12 +43,91 @@ module.exports = function(db_name) {
 
     module.deposit = (data) => {
         return new Promise(function(resolve, reject) {
-            const input = [];
             const items = data[0]
             const user_id = data[1]
-            items.forEach(element => {
-                input.push([uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "DEPOSIT"])
-            });
+            const consolidated = consolidate_movement({
+                'items' : items,
+                'user_id' : user_id,
+                'movement_label' : 'DEPOSIT'
+            })
+            if_location_exist({
+                'location' : consolidated.location
+            }).then(function (exists) {
+                if (exists){
+                    insert_stock({
+                        'input' : consolidated.input
+                    }).then(function (output) {
+                        const res = {}
+                        res["movement"] = consolidated.input
+                        res["message"] = 'Item succesfully deposited'
+                        resolve(res);
+                    }).catch(function (err) {
+                        reject(err);
+                    })
+                }
+                else{
+                    reject(new Error("Some location does not exist."));
+                }
+            }).catch(function (err) {
+                reject(err);
+            })
+        })
+    }
+
+    module.withdraw = (data) => {
+        return new Promise(function(resolve, reject) {
+            const items = data[0]
+            const user_id = data[1]
+            const consolidated = consolidate_movement({
+                'items' : items,
+                'user_id' : user_id,
+                'movement_label' : 'WITHDRAW'
+            })
+            if_location_exist({
+                'location' : consolidated.location
+            }).then(function (exists) {
+                if (exists){
+                    insert_stock({
+                        'input' : consolidated.input
+                    }).then(function (output) {
+                        const res = {}
+                        res["movement"] = consolidated.input
+                        res["message"] = 'Item succesfully withdrawn'
+                        resolve(res);
+                    }).catch(function (err) {
+                        reject(err);
+                    })
+                }
+                else{
+                    reject(new Error("Some location does not exist."));
+                }
+            }).catch(function (err) {
+                reject(err);
+            })
+        })
+    }
+
+    function consolidate_movement(params) {
+        const items = params.items
+        const user_id = params.user_id
+        const movement_label = params.movement_label
+        const input = [];
+        const location = [];
+        items.forEach(element => {
+            input.push([uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, movement_label])
+            if (location.indexOf(element.location_id) == -1){
+                location.push(element.location_id)
+            }
+        });
+        return {
+            'input' : input,
+            'location' : location
+        }
+    }
+
+    function insert_stock(params) {
+        return new Promise(function(resolve, reject) {
+            const input = params.input
             mysql.use(db)
             .query(
                 'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES ?',
@@ -57,12 +136,8 @@ module.exports = function(db_name) {
                     if (err1) {
                         reject(err1);
                     }
-
                     else {
-                        const res = {}
-                        res["movement"] = input
-                        res["message"] = 'Item succesfully deposited'
-                        resolve(res);
+                        resolve(res1);
                     }
                 }
             )
@@ -70,32 +145,29 @@ module.exports = function(db_name) {
         })
     }
 
-    module.withdraw = (data) => {
+    function if_location_exist(params) {
         return new Promise(function(resolve, reject) {
-            const input = [];
-            const items = data[0]
-            const user_id = data[1]
-            items.forEach(element => {
-                input.push([uuid.v4(), element.id, element.quantity, element.location_id, element.expiration_date, element.remarks, user_id, "WITHDRAW"])
-            });
+            const location = params.location
             mysql.use(db)
-            .query(
-                'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type) VALUES ?',
-                [input],
-                function(err1, res1) {
-                    if (err1) {
-                        reject(err1);
-                    }
+                .query(
+                    'SELECT * from im_location WHERE id in (?)',
+                    [location],
+                    function(err1, res1) {
+                        if (err1) {
+                            reject(err1);
+                        }
 
-                    else {
-                        const res = {}
-                        res["movement"] = input
-                        res["message"] = 'Item succesfully withdrawn'
-                        resolve(res);
+                        else {
+                            if (location.length == res1.length){
+                                resolve(true)
+                            }
+                            else{
+                                resolve(false)
+                            }
+                        }
                     }
-                }
-            )
-            .end();
+                )
+                .end();
         })
     }
 
@@ -106,12 +178,12 @@ module.exports('bgw73vdwex88xb6h').withdraw([
     [
         { id: '6abe0f64-e95d-11e8-9f32-f2801f1b9fd1',
           quantity: 10,
-          location_id: '06882ccc-e93b-11e8-9f32-f2801f1b9fd1',
+          location_id: '1',
           expiration_date: '', 
           remarks: 'test'},
         { id: '6abe0f64-e95d-11e8-9f32-f2801f1b9fd1',
           quantity: 10,
-          location_id: '06882ccc-e93b-11e8-9f32-f2801f1b9fd1',
+          location_id: '2',
           expiration_date: '', 
           remarks : 'test2'}
     ],
