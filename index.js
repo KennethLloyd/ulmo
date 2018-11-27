@@ -402,7 +402,7 @@ module.exports = function(db_name) {
                         item_id: [],
                         is_breakdown: 1,
                         is_grouped: 0,
-                        page: -1,
+                        page: -1, //to remove pagination in get_current_inventory
                         user_id: params.user_id
                     }
 
@@ -516,7 +516,7 @@ module.exports = function(db_name) {
 
             mysql.use(db)
             .query(
-                'SELECT * FROM im_balance_history WHERE user_id = ? AND label LIKE ? AND (created BETWEEN ? AND ?) LIMIT ?,?',
+                'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id AND bh.user_id = ? AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
                 [params.user_id, "%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
                 function(err1, res1) {
                     if (err1) {
@@ -529,26 +529,150 @@ module.exports = function(db_name) {
                 }
             )
             .end();
-        })
+        }) 
     }
 
     module.get_inventory = (params) => {
         return new Promise(function(resolve, reject) {
-            mysql.use(db)
-            .query(
-                'SELECT * FROM im_balance_history_details WHERE balance_id = ?',
-                [params.balance_id],
-                function(err1, res1) {
-                    if (err1) {
-                        reject(err1);
-                    }
+            var response = [];
 
-                    else {
-                        resolve(res1);
-                    }
+            if (typeof params.search_item === 'undefined' || params.search_item === undefined) {
+                params.search_item = '';
+            }
+            if (typeof params.is_breakdown === 'undefined' || params.is_breakdown === undefined) {
+                params.is_breakdown = 1;
+            }
+            if (typeof params.is_grouped === 'undefined' || params.is_grouped === undefined) {
+                params.is_grouped = 1;
+            }
+
+            if (params.is_breakdown == 1) { //default for specific locations
+                if (params.location_id.length === 0) { //get for all locations
+                    mysql.use(db)
+                    .query(
+                        'SELECT bh.id AS balance_id, l.id AS location_id, l.code AS location_code, l.name AS location_name, u.' + user_config.user_id + ' AS user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, bh.created FROM im_balance_history bh, im_location l, ' + user_config.user_table + ' u WHERE l.id IN (SELECT DISTINCT location_id FROM im_balance_history_details WHERE balance_id = ?) AND u.' + user_config.user_id + ' = bh.user_id AND bh.id = ? AND bh.user_id = ?',
+                        [params.balance_id, params.balance_id, params.user_id],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else {
+                                async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                            }
+                        }
+                    )
                 }
-            )
-            .end();
+                else { //only retrieve those in specific locations
+                    mysql.use(db)
+                    .query(
+                        'SELECT bh.id AS balance_id, l.id AS location_id, l.code AS location_code, l.name AS location_name, u.' + user_config.user_id + ' AS user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, bh.created FROM im_balance_history bh, im_location l, ' + user_config.user_table + ' u WHERE l.id IN (SELECT DISTINCT location_id FROM im_balance_history_details WHERE balance_id = ?) AND l.id IN (?) AND u.' + user_config.user_id + ' = bh.user_id AND bh.id = ? AND bh.user_id = ?',
+                        [params.balance_id, params.location_id, params.balance_id, params.user_id],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else {
+                                async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                            }
+                        }
+                    )
+                }
+            }
+            else { //location filter has been set to 'all' (is_breakdown = 0)
+                mysql.use(db)
+                .query(
+                    'SELECT bh.id AS balance_id, u.' + user_config.user_id + ' AS user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id AND bh.id = ? AND bh.user_id = ?',
+                    [params.balance_id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else {
+                            async.each(res, fetch_items_no_breakdown, send_response); //get items for each location
+                        }
+                    }
+                )
+            }
+
+            function fetch_items_breakdown(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log(err);
+                        return callback(err);
+                    }
+                    row['items'] = result;
+                    response.push(row);
+                    return callback();
+                }
+
+                if (params.is_grouped == 1) {
+                    var group_clause = "GROUP BY i." + item_config.item_id;
+                    var exp_clause = "";
+                }
+                else {
+                    var group_clause = "GROUP BY hd.item_id, hd.expiration_date";
+                    var exp_clause = ", hd.expiration_date";
+                }
+                
+                if (params.item_id.length === 0) { //all items (not locations)
+                    mysql.use(db)
+                    .query(
+                        'SELECT hd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(hd.quantity) AS item_quantity' + exp_clause + ' FROM im_balance_history_details hd, ' + item_config.item_table + ' i WHERE hd.location_id = ? AND hd.item_id = i.' + item_config.item_id + ' AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND hd.balance_id = ? ' + group_clause + ' LIMIT ?,? ', 
+                        [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", params.balance_id, params.page, params.limit],
+                        send_callback
+                    )
+                }
+                else { //specific items
+                    mysql.use(db)
+                    .query(
+                        'SELECT hd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(hd.quantity) AS item_quantity' + exp_clause + ' FROM im_balance_history_details hd, ' + item_config.item_table + ' i WHERE hd.location_id = ? AND hd.item_id IN (?) AND hd.item_id = i.' + item_config.item_id + ' AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND hd.balance_id = ? ' + group_clause + ' LIMIT ?,? ', 
+                        [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", params.balance_id, params.page, params.limit],
+                        send_callback
+                    )
+                }
+            }
+
+            function fetch_items_no_breakdown(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log(err);
+                        return callback(err);
+                    }
+                    row['items'] = result;
+                    response.push(row);
+                    return callback();
+                }
+                
+                if (params.item_id.length === 0) { //all items (not locations)
+                    mysql.use(db)
+                    .query(
+                        'SELECT hd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(hd.quantity) AS item_quantity FROM im_balance_history_details hd, ' + item_config.item_table + ' i WHERE hd.item_id = i.' + item_config.item_id + ' AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND hd.balance_id = ? GROUP BY i.' + item_config.item_id + ' LIMIT ?,? ', 
+                        ["%"+params.search_item+"%", "%"+params.search_item+"%", params.balance_id, params.page, params.limit],
+                        send_callback
+                    )
+                }
+                else { //specific items
+                    mysql.use(db)
+                    .query(
+                        'SELECT hd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(hd.quantity) AS item_quantity FROM im_balance_history_details hd, ' + item_config.item_table + ' i WHERE hd.item_id IN (?) AND hd.item_id = i.' + item_config.item_id + ' AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND hd.balance_id = ? GROUP BY i.' + item_config.item_id + ' LIMIT ?,? ', 
+                        [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", params.balance_id, params.page, params.limit],
+                        send_callback
+                    )
+                }
+            }
+
+            function send_response(err, result) {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    //return the result
+                    resolve(response);
+                }
+            }
         })
     }
 
