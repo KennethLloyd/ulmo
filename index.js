@@ -392,7 +392,7 @@ module.exports = function(db_name) {
                     //merge latest balance and latest item movements
                     for (var i=0;i<response.length;i++) {
                         for (var j=0;j<latest_balance.length;j++) {
-                            if (response[i].location_id === latest_balance[j].location_id) {
+                            if (response[i].location_id === latest_balance[j].location_id) { //match same locations from movements and latest balance
                                 response[i].items = response[i].items.concat(latest_balance[j].items);
                                 response[i].items.sort(function(a, b) { //sort alphabetically by item name before matching
                                     var textA = a.item_name.toUpperCase();
@@ -811,8 +811,62 @@ module.exports = function(db_name) {
         })
     }
 
-    module.sample_method2 = () => {
-        
+    module.get_expiration_date = (params) => {
+        return new Promise(function(resolve, reject) {
+            mysql.use(db)
+            .query(
+                'SELECT * FROM im_location WHERE id = ? AND deleted IS NULL', 
+                [params.location_id],
+                function(err1, res1) {
+                    if (err1) {
+                        reject(new Error("Error in verifying location"));
+                    } 
+                    else if (!res1.length) {
+                        reject(new Error("Location not found"));
+                    }
+                    else {
+                        start();
+                    }
+                }
+            )
+
+            function start() {
+                var retrieve_params = {
+                    location_id: [params.location_id],
+                    item_id: [params.item_id],
+                    is_breakdown: 1,
+                    is_grouped: 0,
+                    page: -1, //to remove pagination in get_current_inventory
+                    user_id: params.user_id
+                }
+    
+                module.get_current_inventory(retrieve_params)
+                .then(function(response) {
+                    send_response(response);
+                })
+                .catch(function(err) {           
+                    console.log('Error in getting current inventory');           
+                    reject(err);
+                })
+            }
+
+            function send_response(inventory) {
+                var expiration_dates_with_qty = [];
+                var items = inventory[0].items;
+                if (!items.length) {
+                    reject(new Error("Item not found in specified location"));
+                }
+                else {
+                    for (var i=0;i<items.length;i++) {
+                        var exp_obj = {};
+                        exp_obj.expiration_date = items[i].expiration_date;
+                        exp_obj.max_quantity = items[i].item_quantity;
+                        expiration_dates_with_qty.push(exp_obj);
+                    }
+                    resolve(expiration_dates_with_qty);
+                }
+            }
+        })
     }
 
     return module;
