@@ -18,6 +18,7 @@ module.exports = {
         host: 'localhost',
 	    user: 'root',
 	    password: '',
+        //password: 'pr0j3ct0r',
         database: 'sme_db'
     },
 
