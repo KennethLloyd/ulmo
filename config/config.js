@@ -17,12 +17,8 @@ module.exports = {
     JEEVES_DB: {
         host: 'localhost',
 	    user: 'root',
-<<<<<<< HEAD
-	    password: '',
-=======
         //password: 'pr0j3ct0r',
         password: '',
->>>>>>> b75bc5a065ccb11610ad095ee9ebe22be1b26024
         database: 'sme_db'
     },
 

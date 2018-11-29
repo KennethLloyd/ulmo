@@ -22,11 +22,20 @@
   "dependencies": {
     "anytv-node-importer": "0.0.0",
     "anytv-node-mysql": "0.0.48",
+<<<<<<< HEAD
     "apidoc": "^0.17.7",
+=======
+    "async": "^2.6.1",
+>>>>>>> 8b8d1e1581d60c4e9554424d6db7d30ecddefddb
     "crypto": "0.0.3",
     "file-stream-rotator": "0.0.7",
     "path": "^0.12.7",
     "promise": "^8.0.2",
+<<<<<<< HEAD
     "uuid": "^3.3.2"
+=======
+    "uuid": "^3.3.2",
+    "winston": "^3.1.0"
+>>>>>>> 8b8d1e1581d60c4e9554424d6db7d30ecddefddb
   }
 }
