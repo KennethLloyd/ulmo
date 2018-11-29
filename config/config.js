@@ -34,6 +34,27 @@ module.exports = {
         user_id: 'id',
         user_first_name: 'first_name',
         user_last_name: 'last_name'
+    },
+
+    bgw73vdwex88xb6h_DB: {
+        host: 'd6vscs19jtah8iwb.cbetxkdyhwsb.us-east-1.rds.amazonaws.com',
+        user: 'ykoqwv2n78hpimu0',
+        password: 'twa8j54kcuepm337',
+        database: 'bgw73vdwex88xb6h'
+    },
+
+    bgw73vdwex88xb6h_db_item_config: {
+        item_table: 'material',
+        item_id: 'id',
+        item_sku: 'code',
+        item_name: 'name'
+    },
+
+    bgw73vdwex88xb6h_db_user_config: {
+        user_table: 'users',
+        user_id: 'id',
+        user_first_name: 'first_name',
+        user_last_name: 'last_name'
     }
     
 };
