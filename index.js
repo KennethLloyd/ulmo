@@ -819,9 +819,11 @@ module.exports = function(db_name) {
                 [params.location_id],
                 function(err1, res1) {
                     if (err1) {
+                        console.log("Error in verifying location in get_expiration_date");
                         reject(new Error("Error in verifying location"));
                     } 
                     else if (!res1.length) {
+                        console.log("Location not found in get_expiration_date");
                         reject(new Error("Location not found"));
                     }
                     else {
@@ -845,7 +847,7 @@ module.exports = function(db_name) {
                     send_response(response);
                 })
                 .catch(function(err) {           
-                    console.log('Error in getting current inventory');           
+                    console.log('Error in getting current inventory inside get expiration date');     
                     reject(err);
                 })
             }
@@ -854,6 +856,7 @@ module.exports = function(db_name) {
                 var expiration_dates_with_qty = [];
                 var items = inventory[0].items;
                 if (!items.length) {
+                    console.log("Item not found in specified location in get expiration date");
                     reject(new Error("Item not found in specified location"));
                 }
                 else {
@@ -868,6 +871,78 @@ module.exports = function(db_name) {
             }
         })
     }
+
+    module.init_cyclecount = (params) => {
+        return new Promise(function(resolve, reject) {
+            var report_id = uuid.v4();
+            
+            mysql.use(db)
+            .query(
+                'SELECT * FROM im_location WHERE id = ? AND deleted IS NULL', 
+                [params.location_id],
+                function(err1, res1) {
+                    if (err1) {
+                        console.log("Error in verifying location in init cyclecount");
+                        reject(new Error("Error in verifying location"));
+                    } 
+                    else if (!res1.length) {
+                        console.log("Location not found in init cyclecount");
+                        reject(new Error("Location not found"));
+                    }
+                    else {
+                        start();
+                    }
+                }
+            )
+
+            function start() {
+                mysql.use(db)
+                .query(
+                    'INSERT INTO im_cycle_count(id, location_id, cycle_label, round, user_id) VALUES (?,?,?,?,?)', 
+                    [report_id, params.location_id, params.cycle_label, params.round, params.user_id],
+                    function(err1, res1) {
+                        if (err1) {
+                            console.log("Error in creating new cyclecount report")
+                            reject(new Error("Error in creating new cycle count report"));
+                        }
+                        else {
+                            async.each(params.items, create_details, send_response);
+                        }
+                    }
+                )
+            }
+
+            function create_details(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log('Error in creating new cyclecount report details');
+                        return callback(err);
+                    }
+                    return callback();
+                }
+                
+                mysql.use(db)
+                .query(
+                    'INSERT INTO im_cycle_count_details(id, cycle_count_id, item_id, actual_quantity) VALUES (?,?,?,?)', 
+                    [uuid.v4(), report_id, row.item_id, row.item_quantity],
+                    send_callback
+                )
+            }
+
+            function send_response(err, res) {
+                if (err) {
+                    console.log("Error in initializing cycle count");
+                    reject("Error in initializing cycle count");
+                }
+                else {
+                    params.report_id = report_id;
+                    resolve(params);
+                }
+            }
+        })
+    }
+
+
 
     module.item_movement_history = (data) => {
         return new Promise(function(resolve, reject) {     
