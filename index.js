@@ -898,8 +898,8 @@ module.exports = function(db_name) {
             function start() {
                 mysql.use(db)
                 .query(
-                    'INSERT INTO im_cycle_count(id, location_id, cycle_label, round, user_id) VALUES (?,?,?,?,?)', 
-                    [report_id, params.location_id, params.cycle_label, params.round, params.user_id],
+                    'INSERT INTO im_cycle_count(id, location_id, cycle_label, num_cycle, user_id) VALUES (?,?,?,?,?)', 
+                    [report_id, params.location_id, params.cycle_label, params.num_cycle, params.user_id],
                     function(err1, res1) {
                         if (err1) {
                             console.log("Error in creating new cyclecount report")
@@ -937,6 +937,33 @@ module.exports = function(db_name) {
                 else {
                     params.report_id = report_id;
                     resolve(params);
+                }
+            }
+        })
+    }
+
+    module.get_pending_cyclecount = (params) => {
+        return new Promise(function(resolve, reject) {      
+
+            if (typeof params.search === 'undefined' || params.search === undefined) {
+                params.search = '';
+            }
+
+            mysql.use(db)
+            .query(
+                'SELECT cc.id, cc.created AS date, cc.cycle_label, cc.location_id, l.code AS location_code, l.name AS location_name, cc.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, cc.round FROM im_cycle_count cc, im_location l, ' + user_config.user_table + ' u WHERE cc.location_id = l.id AND cc.user_id = u.' + user_config.user_id + ' AND cc.cycle_label LIKE ? AND cc.status = "PENDING" AND cc.deleted IS NULL LIMIT ?,?', 
+                ["%"+params.search+"%", params.page, params.limit],
+                send_response
+            )
+
+            function send_response(err, res, args, last_query) {
+                if (err) {
+                    console.log(err);
+                    console.log("Error in retrieving pending cycle count");
+                    reject("Error in initializing cycle count");
+                }
+                else {
+                    resolve(res);
                 }
             }
         })
