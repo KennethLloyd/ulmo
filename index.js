@@ -960,7 +960,30 @@ module.exports = function(db_name) {
                 if (err) {
                     console.log(err);
                     console.log("Error in retrieving pending cycle count");
-                    reject("Error in initializing cycle count");
+                    reject("Error in retrieving pending cycle count");
+                }
+                else {
+                    resolve(res);
+                }
+            }
+        })
+    }
+
+    module.get_pending_cyclecount_details = (params) => {
+        return new Promise(function(resolve, reject) {      
+
+            mysql.use(db)
+            .query(
+                'SELECT cd.id, cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name FROM im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cd.item_id = i.' + item_config.item_id + ' AND cd.cycle_count_id = ? LIMIT ?,?', 
+                [params.report_id, params.page, params.limit],
+                send_response
+            )
+
+            function send_response(err, res, args, last_query) {
+                if (err) {
+                    console.log(err);
+                    console.log("Error in retrieving pending cycle count details");
+                    reject("Error in retrieving pending cycle count details");
                 }
                 else {
                     resolve(res);
