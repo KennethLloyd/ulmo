@@ -973,10 +973,14 @@ module.exports = function(db_name) {
         return new Promise(function(resolve, reject) {   
             var cycle_label = null;
             var round = null;
+            var date = null;
+            var location_id = null;
+            var location_code = null;
+            var location_name = null;
 
             mysql.use(db)
             .query(
-                'SELECT * FROM im_cycle_count WHERE id = ? AND status = "PENDING" AND deleted IS NULL', 
+                'SELECT cc.cycle_label, cc.round, cc.created, cc.location_id, l.code AS location_code, l.name AS location_name FROM im_cycle_count cc, im_location l WHERE cc.location_id = l.id AND cc.id = ? AND cc.status = "PENDING" AND cc.deleted IS NULL', 
                 [params.report_id],
                 function(err1, res1) {
                     if (err1) {
@@ -984,12 +988,16 @@ module.exports = function(db_name) {
                         reject(new Error("Error in verifying report_id"));
                     } 
                     else if (!res1.length) {
-                        console.log("Report id not found in init cyclecount");
+                        console.log("Report id not found in get pending cyclecount details");
                         reject(new Error("Cycle count report not found"));
                     }
                     else {
                         cycle_label = res1[0].cycle_label;
                         round = res1[0].round;
+                        date = res1[0].created;
+                        location_id = res1[0].location_id;
+                        location_code = res1[0].location_code;
+                        location_name = res1[0].location_name;
                         start();
                     }
                 }
@@ -1012,8 +1020,12 @@ module.exports = function(db_name) {
                 }
                 else {
                     var response = {};
+                    response.date = date;
                     response.cycle_label = cycle_label;
                     response.round = round;
+                    response.location_id = location_id;
+                    response.location_code = location_code;
+                    response.location_name = location_name;
                     response.items = res;
                     resolve(response);
                 }
@@ -1118,6 +1130,70 @@ module.exports = function(db_name) {
                 }
                 else {
                     resolve(res);
+                }
+            }
+        })
+    }
+
+    module.get_cyclecount_history_details = (params) => {
+        return new Promise(function(resolve, reject) {   
+            var cycle_label = null;
+            var round = null;
+            var date = null;
+            var location_id = null;
+            var location_code = null;
+            var location_name = null;
+
+            mysql.use(db)
+            .query(
+                'SELECT cc.cycle_label, cc.round, cc.created, cc.location_id, l.code AS location_code, l.name AS location_name FROM im_cycle_count cc, im_location l WHERE cc.location_id = l.id AND cc.id = ? AND cc.status = "DONE" AND cc.deleted IS NULL', 
+                [params.report_id],
+                function(err1, res1) {
+                    if (err1) {
+                        console.log("Error in verifying report id in get cyclecount history details");
+                        reject(new Error("Error in verifying report_id"));
+                    } 
+                    else if (!res1.length) {
+                        console.log("Report id not found in get cyclecount history details");
+                        reject(new Error("Cycle count report not found"));
+                    }
+                    else {
+                        cycle_label = res1[0].cycle_label;
+                        round = res1[0].round;
+                        date = res1[0].created;
+                        location_id = res1[0].location_id;
+                        location_code = res1[0].location_code;
+                        location_name = res1[0].location_name;
+                        start();
+                    }
+                }
+            )
+
+            function start() {
+                mysql.use(db)
+                .query(
+                    'SELECT cd.id, cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, cd.actual_quantity AS item_quantity, cd.cc_count AS item_count, cd.variance FROM im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cd.item_id = i.' + item_config.item_id + ' AND cd.cycle_count_id = ? LIMIT ?,?', 
+                    [params.report_id, params.page, params.limit],
+                    send_response
+                )
+            }
+
+            function send_response(err, res, args, last_query) {
+                if (err) {
+                    console.log(err);
+                    console.log("Error in retrieving cycle count history details");
+                    reject("Error in retrieving cycle count history details");
+                }
+                else {
+                    var response = {};
+                    response.date = date;
+                    response.cycle_label = cycle_label;
+                    response.round = round;
+                    response.location_id = location_id;
+                    response.location_code = location_code;
+                    response.location_name = location_name;
+                    response.items = res;
+                    resolve(response);
                 }
             }
         })
