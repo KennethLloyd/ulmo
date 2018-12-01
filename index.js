@@ -971,7 +971,9 @@ module.exports = function(db_name) {
 
     module.get_pending_cyclecount_details = (params) => {
         return new Promise(function(resolve, reject) {   
-            
+            var cycle_label = null;
+            var round = null;
+
             mysql.use(db)
             .query(
                 'SELECT * FROM im_cycle_count WHERE id = ? AND status = "PENDING" AND deleted IS NULL', 
@@ -986,6 +988,8 @@ module.exports = function(db_name) {
                         reject(new Error("Cycle count report not found"));
                     }
                     else {
+                        cycle_label = res1[0].cycle_label;
+                        round = res1[0].round;
                         start();
                     }
                 }
@@ -1007,7 +1011,11 @@ module.exports = function(db_name) {
                     reject("Error in retrieving pending cycle count details");
                 }
                 else {
-                    resolve(res);
+                    var response = {};
+                    response.cycle_label = cycle_label;
+                    response.round = round;
+                    response.items = res;
+                    resolve(response);
                 }
             }
         })
@@ -1083,6 +1091,33 @@ module.exports = function(db_name) {
                             }
                         }
                     )
+                }
+            }
+        })
+    }
+
+    module.get_cyclecount_history = (params) => {
+        return new Promise(function(resolve, reject) {      
+
+            if (typeof params.search === 'undefined' || params.search === undefined) {
+                params.search = '';
+            }
+
+            mysql.use(db)
+            .query(
+                'SELECT cc.id, cc.created AS date, cc.cycle_label, cc.location_id, l.code AS location_code, l.name AS location_name, cc.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, cc.round, cc.max_cycle FROM im_cycle_count cc, im_location l, ' + user_config.user_table + ' u WHERE cc.location_id = l.id AND cc.user_id = u.' + user_config.user_id + ' AND cc.cycle_label LIKE ? AND cc.status = "DONE" AND cc.deleted IS NULL LIMIT ?,?', 
+                ["%"+params.search+"%", params.page, params.limit],
+                send_response
+            )
+
+            function send_response(err, res, args, last_query) {
+                if (err) {
+                    console.log(err);
+                    console.log("Error in retrieving cycle count history");
+                    reject("Error in retrieving cycle count history");
+                }
+                else {
+                    resolve(res);
                 }
             }
         })
