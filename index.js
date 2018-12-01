@@ -898,8 +898,8 @@ module.exports = function(db_name) {
             function start() {
                 mysql.use(db)
                 .query(
-                    'INSERT INTO im_cycle_count(id, location_id, cycle_label, num_cycle, user_id) VALUES (?,?,?,?,?)', 
-                    [report_id, params.location_id, params.cycle_label, params.num_cycle, params.user_id],
+                    'INSERT INTO im_cycle_count(id, location_id, cycle_label, max_cycle, user_id) VALUES (?,?,?,?,?)', 
+                    [report_id, params.location_id, params.cycle_label, params.max_cycle, params.user_id],
                     function(err1, res1) {
                         if (err1) {
                             console.log("Error in creating new cyclecount report")
@@ -951,7 +951,7 @@ module.exports = function(db_name) {
 
             mysql.use(db)
             .query(
-                'SELECT cc.id, cc.created AS date, cc.cycle_label, cc.location_id, l.code AS location_code, l.name AS location_name, cc.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, cc.round FROM im_cycle_count cc, im_location l, ' + user_config.user_table + ' u WHERE cc.location_id = l.id AND cc.user_id = u.' + user_config.user_id + ' AND cc.cycle_label LIKE ? AND cc.status = "PENDING" AND cc.deleted IS NULL LIMIT ?,?', 
+                'SELECT cc.id, cc.created AS date, cc.cycle_label, cc.location_id, l.code AS location_code, l.name AS location_name, cc.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name, cc.round, cc.max_cycle FROM im_cycle_count cc, im_location l, ' + user_config.user_table + ' u WHERE cc.location_id = l.id AND cc.user_id = u.' + user_config.user_id + ' AND cc.cycle_label LIKE ? AND cc.status = "PENDING" AND cc.deleted IS NULL LIMIT ?,?', 
                 ["%"+params.search+"%", params.page, params.limit],
                 send_response
             )
@@ -970,14 +970,35 @@ module.exports = function(db_name) {
     }
 
     module.get_pending_cyclecount_details = (params) => {
-        return new Promise(function(resolve, reject) {      
-
+        return new Promise(function(resolve, reject) {   
+            
             mysql.use(db)
             .query(
-                'SELECT cd.id, cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name FROM im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cd.item_id = i.' + item_config.item_id + ' AND cd.cycle_count_id = ? LIMIT ?,?', 
-                [params.report_id, params.page, params.limit],
-                send_response
+                'SELECT * FROM im_cycle_count WHERE id = ? AND status = "PENDING" AND deleted IS NULL', 
+                [params.report_id],
+                function(err1, res1) {
+                    if (err1) {
+                        console.log("Error in verifying report id in get pending cyclecount details");
+                        reject(new Error("Error in verifying report_id"));
+                    } 
+                    else if (!res1.length) {
+                        console.log("Report id not found in init cyclecount");
+                        reject(new Error("Cycle count report not found"));
+                    }
+                    else {
+                        start();
+                    }
+                }
             )
+
+            function start() {
+                mysql.use(db)
+                .query(
+                    'SELECT cd.id, cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name FROM im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cd.item_id = i.' + item_config.item_id + ' AND cd.cycle_count_id = ? AND (cd.variance IS NULL OR cd.variance != 0.0) LIMIT ?,?', 
+                    [params.report_id, params.page, params.limit],
+                    send_response
+                )
+            }
 
             function send_response(err, res, args, last_query) {
                 if (err) {
@@ -992,7 +1013,80 @@ module.exports = function(db_name) {
         })
     }
 
+    module.cyclecount = (params) => {
+        return new Promise(function(resolve, reject) {
+            var round = null;
+            var max_cycle = null;
+            var status = null;
 
+            mysql.use(db)
+            .query(
+                'SELECT * FROM im_cycle_count WHERE id = ? AND status = "PENDING" AND deleted IS NULL', 
+                [params.report_id],
+                function(err1, res1) {
+                    if (err1) {
+                        console.log("Error in verifying report id in get pending cyclecount details");
+                        reject(new Error("Error in verifying report_id"));
+                    } 
+                    else if (!res1.length) {
+                        console.log("Report id not found in init cyclecount");
+                        reject(new Error("Cycle count report not found"));
+                    }
+                    else {
+                        round = res1[0].round;
+                        max_cycle = res1[0].max_cycle;
+                        status = res1[0].status;
+                        async.each(params.items, update_details, send_response);
+                    }
+                }
+            )
+
+            function update_details(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log('Error in updating cyclecount report details');
+                        return callback(err);
+                    }
+                    return callback();
+                }
+                
+                mysql.use(db)
+                .query(
+                    'UPDATE im_cycle_count_details SET cc_count = ?, variance = (? - actual_quantity) WHERE item_id = ? AND cycle_count_id = ?', 
+                    [row.item_count, row.item_count, row.item_id, params.report_id],
+                    send_callback
+                )
+            }
+            
+
+            function send_response(err, res) {
+                if (err) {
+                    console.log("Error in updating cycle count details");
+                    reject("Error in updating cycle count");
+                }
+                else {
+                    round = round + 1;
+                    if (round == max_cycle) {
+                        status = "DONE";
+                    }
+                    mysql.use(db)
+                    .query(
+                        'UPDATE im_cycle_count SET round = ?, status = ? WHERE id = ?', 
+                        [round, status, params.report_id],
+                        function(err1, res1) {
+                            if (err1) {
+                                console.log(err1);
+                                reject("Error in updating cycle count");
+                            }
+                            else {
+                                resolve();
+                            }
+                        }
+                    )
+                }
+            }
+        })
+    }
 
     module.item_movement_history = (data) => {
         return new Promise(function(resolve, reject) {     
