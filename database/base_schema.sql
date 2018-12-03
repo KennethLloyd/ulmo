@@ -117,31 +117,3 @@ CREATE TABLE IF NOT EXISTS `im_location` (
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
 /*!40014 SET FOREIGN_KEY_CHECKS=IF(@OLD_FOREIGN_KEY_CHECKS IS NULL, 1, @OLD_FOREIGN_KEY_CHECKS) */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-
-
-/*2018-11-29*/
-CREATE TABLE IF NOT EXISTS `im_movement_transaction` (
-  `id` varchar(100) NOT NULL,
-  `created` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated` datetime DEFAULT NULL,
-  `deleted` datetime DEFAULT NULL,
-  `user_id` varchar(100) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
--- Dumping structure for table sme_db.im_item_movement
-CREATE TABLE IF NOT EXISTS `im_item_movement` (
-  `id` varchar(100) NOT NULL,
-  `transaction_id` varchar(100) NOT NULL,
-  `item_id` varchar(100) NOT NULL,
-  `quantity` decimal(7,2) NOT NULL,
-  `location_id` varchar(100) NOT NULL,
-  `expiration_date` datetime DEFAULT NULL,
-  `remarks` varchar(200) DEFAULT NULL,
-  `type` varchar(20) NOT NULL,
-  `created` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated` datetime DEFAULT NULL,
-  `deleted` datetime DEFAULT NULL,
-  `user_id` varchar(100) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
