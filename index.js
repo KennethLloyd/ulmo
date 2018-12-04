@@ -18,7 +18,7 @@ module.exports = function(db_name) {
 
     module.withdraw = (data) => {
         return new Promise(function(resolve, reject) {
-    
+
             const datum = data[0];
     
             function check_location(cb){    
@@ -54,65 +54,89 @@ module.exports = function(db_name) {
                             }
                         ).end();
                 }
-    
             }
 
+            function check_quantity(cb) {                
 
-            function check_quantity(cb){
+                let hasExceed           = 0;
+                let hasZeroRemaining    = 0;
+                let hasZeroUserInput    = 0;
+                let counter             = 0;
 
-                for(let i=0; i<datum.items.length; i++){
+                datum.items.forEach(function(item, i) {
 
-                    if(datum.items[i].quantity == 0){
-                        reject("There is no withdraw quantity, no items withdrawn");
-                    }
+                    if(parseFloat(item.quantity) <= 0){
+                        hasZeroUserInput = 1;    
+                    }else{
 
-                    mysql.use(db)
+                        mysql.use(db)
                         .query(
                             'SELECT quantity, type FROM im_item_movement WHERE item_id = ? AND location_id = ? AND user_id =? AND deleted IS NULL',
-                            [datum.items[i].item_id, datum.items[i].location_id, datum.items[i].user_id],
+                            [item.item_id, item.location_id, item.user_id],
                             function(error, result) {
                                 if(error) {
                                     reject(error);
-                                }else{
-                                    if(result.length==0){
-                                        return cb(null,false);
-                                    }
-                                                                                                          
-                                    let deposit = 0;
-                                    let withdraw = 0;
+                                } else {
+                                    if(result.length == 0){
+                                        hasZeroUserInput = 1;
+                                    }else{
 
-                                    for(let a=0; a<result.length; a++){
-                                        if(result[a].type === "DEPOSIT"){
-                                            deposit +=result[a].quantity
-                                        }else if(result[a].type === "WITHDRAW"){
-                                            withdraw +=result[a].quantity
-                                        }
+                                        function getRemaining(cb2){
 
-                                        if(a==result.length-1){
-                                            let remaining = deposit - withdraw;
+                                            let deposit     = 0;
+                                            let withdraw    = 0;
 
-                                            if(remaining == 0){
-                                                return reject("There is no quantity to withdraw");
-                                            }
-
-                                            if(remaining < datum.items[i].quantity){
-                                                return reject("Withdraw quantity exceeded, no items where withdrawn");
-                                            }
-                                            
-                                            if(i == datum.items.length-1){
-                                                return cb(null, true)
+                                            for(let a=0; a < result.length; a++) {
+                                                if(result[a].type === "DEPOSIT") {
+                                                    deposit += parseFloat(result[a].quantity)
+                                                }else if(result[a].type === "WITHDRAW") {
+                                                    withdraw += parseFloat(result[a].quantity)
+                                                }
+                                                
+                                                if(a == result.length - 1) {
+                                                    let remaining = parseFloat(deposit) - parseFloat(withdraw);
+                                                    cb2(null, remaining)
+                                                }
                                             }
 
                                         }
+
+                                        async.series([getRemaining], (err, results) => {
+                                            if (err) {
+                                                reject(err)
+                                            }
+
+                                            let remainingbal = results[0];
+
+                                            switch (true) {
+                                                case (remainingbal <= 0)                          :   hasZeroRemaining = 1;
+                                                                                                    break;                                                
+                                                case (remainingbal < parseFloat(item.quantity))   :   hasExceed = 1;
+                                                                                                    break;
+                                                case (remainingbal >= parseFloat(item.quantity))  :   counter++;
+                                                                                                    break;                                      
+                                            }
+
+
+                                            if(counter == datum.items.length && i == datum.items.length-1){
+                                                return cb(null,true);
+                                            }else if (i == datum.items.length-1){
+                                                switch(true){ 
+                                                    case (hasExceed == 1)                                         : return cb(null, "exceed");
+                                                    case ((hasZeroRemaining == 1) || (hasZeroUserInput == 1))     : return cb(null,false);   
+                                                    default                                                       : return cb(null,false);
+                                                }
+                                            }                                           
+
+                                        })
+
                                     }
-                                    
                                 }
                             }
-                        ).end();                        
-                        
-
-                }
-    
+                        ).end()
+                    }
+                    
+                })                
             }
 
     
@@ -120,10 +144,19 @@ module.exports = function(db_name) {
                 if (err) {
                     reject(err)
                 }
-    
+                
                 if(results[0]==false){
                     reject("Location not found no items were saved");
                 }
+
+                if(results[1]==false){
+                    reject("There is no quantity to withdraw");
+                }
+
+                if(results[1]==="exceed"){
+                    reject("Quantity to withdraw is higher than the remaining balance");
+                }
+
                 
                 if(results[0]==true && results[1]==true){
                    
@@ -133,11 +166,11 @@ module.exports = function(db_name) {
                         .query(
                             'INSERT INTO im_movement_transaction (id, user_id) VALUES (?,?)',
                             [transaction_id,datum.user_id],
-                            function(err,res){
+                            function(err,res) {
                                 if (err) {
                                     reject(err);
-                                }else{
-                                    for(let i=0; i<datum.items.length; i++){
+                                } else {
+                                    for(let i=0; i<datum.items.length; i++) {
                                         mysql.use(db)
                                         .query(
                                             'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
@@ -145,9 +178,8 @@ module.exports = function(db_name) {
                                             function(err1, res1) {
                                                 if (err1) {
                                                     reject(err1);
-                                                }else {
-                                                    if(i == datum.items.length-1){
-                
+                                                } else {
+                                                    if(i == datum.items.length-1) {
                                                         resolve([datum.items, {message: "Items successfully withdrawn", transaction_id: transaction_id}]);
                                                     }
                                                 }
@@ -159,11 +191,11 @@ module.exports = function(db_name) {
                             }
                         ).end()
                 }
-    
+                
             })
-    
-    
+            
         })
+  
     }
 
 
