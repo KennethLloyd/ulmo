@@ -20,19 +20,22 @@ module.exports = function(db_name) {
         return new Promise(function(resolve, reject) {
 
             const datum = data[0];
+
+            let noLocation = 0;
+
+            function check_location(cb){
     
-            function check_location(cb){    
                 for(let i=0; i<datum.items.length; i++){
                     mysql.use(db)
                         .query(
-                            'SELECT * FROM im_location WHERE id = ? AND deleted IS NULL',
+                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
                             [datum.items[i].location_id],
                             function(error, result) {
                                 if(error) {
                                     reject(error);
                                 }else{
-                                   if(result.length==0){
-                                        return cb(null,false);
+                                    if(result.length==0){
+                                        noLocation = 1;                                        
                                     }else{
                                         datum.items[i].id = uuid.v4();
                                         datum.items[i].user_id = datum.user_id;
@@ -44,20 +47,27 @@ module.exports = function(db_name) {
     
                                         if(datum.items[i].remarks == undefined){
                                             datum.items[i].remarks = null
-                                        }
-    
-                                        if(i == datum.items.length-1){
-                                            return cb(null,true);
-                                        }
-                                   }
+                                        } 
+                                    }
+
+                                    if(i == datum.items.length-1 && noLocation == 0){
+                                        return cb(null,true);
+                                    }else if(i == datum.items.length-1 && noLocation == 1){
+                                        return cb(null,false);
+                                    }
                                 }
                             }
                         ).end();
                 }
+    
             }
 
-            function check_quantity(cb) {                
-
+            function check_quantity(cb) {   
+                
+                if(noLocation == 1){
+                    return cb(null,"nolocation");
+                }else{
+                
                 let hasExceed           = 0;
                 let hasZeroRemaining    = 0;
                 let hasZeroUserInput    = 0;
@@ -65,14 +75,20 @@ module.exports = function(db_name) {
 
                 datum.items.forEach(function(item, i) {
 
+                    let qry = '';
+
+                        if(item.expiration_date){
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
+                        }else{
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND deleted IS NULL';
+                        }
+
                     if(parseFloat(item.quantity) <= 0){
                         hasZeroUserInput = 1;    
                     }else{
-
                         mysql.use(db)
                         .query(
-                            'SELECT quantity, type FROM im_item_movement WHERE item_id = ? AND location_id = ? AND user_id =? AND deleted IS NULL',
-                            [item.item_id, item.location_id, item.user_id],
+                            qry,
                             function(error, result) {
                                 if(error) {
                                     reject(error);
@@ -122,9 +138,10 @@ module.exports = function(db_name) {
                                                 return cb(null,true);
                                             }else if (i == datum.items.length-1){
                                                 switch(true){ 
-                                                    case (hasExceed == 1)                                         : return cb(null, "exceed");
-                                                    case ((hasZeroRemaining == 1) || (hasZeroUserInput == 1))     : return cb(null,false);   
-                                                    default                                                       : return cb(null,false);
+                                                    case (hasExceed == 1)           : return cb(null, "exceed");
+                                                    case (hasZeroRemaining == 1)    : return cb(null,false);
+                                                    case (hasZeroUserInput == 1)    : return cb(null,false);   
+                                                    default                         : return cb(null,false);
                                                 }
                                             }                                           
 
@@ -136,7 +153,9 @@ module.exports = function(db_name) {
                         ).end()
                     }
                     
-                })                
+                })
+
+                }                
             }
 
     
@@ -145,7 +164,7 @@ module.exports = function(db_name) {
                     reject(err)
                 }
                 
-                if(results[0]==false){
+                if(results[0]==false || results[1]=="nolocation"){
                     reject("Location not found no items were saved");
                 }
 
