@@ -22,18 +22,20 @@ module.exports = function(db_name) {
             const datum = data[0];
     
             function check_location(cb){
+
+                let noLocation = 0;
     
                 for(let i=0; i<datum.items.length; i++){
                     mysql.use(db)
                         .query(
-                            'SELECT * FROM im_location WHERE id = ? AND deleted IS NULL',
+                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
                             [datum.items[i].location_id],
                             function(error, result) {
                                 if(error) {
                                     reject(error);
                                 }else{
-                                   if(result.length==0){
-                                        return cb(null,false);
+                                    if(result.length==0){
+                                        noLocation = 1;                                        
                                     }else{
                                         datum.items[i].id = uuid.v4();
                                         datum.items[i].user_id = datum.user_id;
@@ -45,12 +47,14 @@ module.exports = function(db_name) {
     
                                         if(datum.items[i].remarks == undefined){
                                             datum.items[i].remarks = null
-                                        }
-    
-                                        if(i == datum.items.length-1){
-                                            return cb(null,true);
-                                        }
-                                   }
+                                        } 
+                                    }
+
+                                    if(i == datum.items.length-1 && noLocation == 0){
+                                        return cb(null,true);
+                                    }else if(i == datum.items.length-1 && noLocation == 1){
+                                        return cb(null,false);
+                                    }
                                 }
                             }
                         ).end();
@@ -65,7 +69,9 @@ module.exports = function(db_name) {
     
                 if(results[0]==false){
                     reject("Location not found no items were saved");
-                }else{
+                }
+                
+                if(results[0]==true){
                     const transaction_id = uuid.v4();
 
                     mysql.use(db)
