@@ -16,12 +16,13 @@ module.exports = function(db_name) {
     var item_config = config[db_name + "_item_config"];
     var user_config = config[db_name + "_user_config"];
 
-    module.withdraw = (data) => {
+    module.transfer = (data) => {
         return new Promise(function(resolve, reject) {
 
-            const datum = data[0];
+            const datum     = data[0];
+            let verified    = [];
 
-            let noLocation = 0;
+            let noLocation  = 0;
 
             function check_location(cb){
     
@@ -29,7 +30,7 @@ module.exports = function(db_name) {
                     mysql.use(db)
                         .query(
                             'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
-                            [datum.items[i].location_id],
+                            [datum.items[i].source],
                             function(error, result) {
                                 if(error) {
                                     reject(error);
@@ -37,20 +38,36 @@ module.exports = function(db_name) {
                                     if(result.length==0){
                                         noLocation = 1;                                        
                                     }else{
-                                        datum.items[i].id = uuid.v4();
+                                       
                                         datum.items[i].user_id = datum.user_id;
-                                        datum.items[i].type = "WITHDRAW"
+
+                                        let itemOk = {
+                                            item_id         : datum.items[i].item_id,
+                                            quantity        : datum.items[i].quantity,
+                                            id              : uuid.v4(),
+                                            user_id         : datum.user_id,
+                                            type            : "WITHDRAW",
+                                            location_id     : datum.items[i].source
+                                        }
+
     
                                         if(datum.items[i].expiration_date == undefined){
-                                            datum.items[i].expiration_date = null
+                                            itemOk.expiration_date = null
+                                        }else{                                            
+                                            itemOk.expiration_date = datum.items[i].expiration_date;          
                                         }
     
                                         if(datum.items[i].remarks == undefined){
-                                            datum.items[i].remarks = null
-                                        } 
+                                            itemOk.remarks = null
+                                        }else{                                                                                     
+                                            itemOk.remarks = datum.items[i].remarks
+                                        }
+                                        
+                                        verified.push(itemOk);
+                                        
                                     }
 
-                                    if(i == datum.items.length-1 && noLocation == 0){
+                                    if(i == datum.items.length-1 && noLocation == 0){                                        
                                         return cb(null,true);
                                     }else if(i == datum.items.length-1 && noLocation == 1){
                                         return cb(null,false);
@@ -66,7 +83,7 @@ module.exports = function(db_name) {
                 
                 if(noLocation == 1){
                     return cb(null,"nolocation");
-                }else{
+                }else{                    
                 
                 let hasExceed           = 0;
                 let hasZeroRemaining    = 0;
@@ -78,11 +95,11 @@ module.exports = function(db_name) {
                     let qry = '';
 
                         if(item.expiration_date){
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.source)+' AND user_id ='+mysql.escape(item.user_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
                         }else{
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND deleted IS NULL';
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.source)+' AND user_id ='+mysql.escape(item.user_id)+' AND deleted IS NULL';
                         }
-
+                        
                     if(parseFloat(item.quantity) <= 0){
                         hasZeroUserInput = 1;    
                     }else{
@@ -134,7 +151,7 @@ module.exports = function(db_name) {
                                             }
 
 
-                                            if(counter == datum.items.length && i == datum.items.length-1){
+                                            if(counter == datum.items.length && i == datum.items.length-1){                                                
                                                 return cb(null,true);
                                             }else if (i == datum.items.length-1){
                                                 switch(true){ 
@@ -177,41 +194,131 @@ module.exports = function(db_name) {
                 }
 
                 
-                if(results[0]==true && results[1]==true){
-                   
-                    const transaction_id = uuid.v4();
-
-                    mysql.use(db)
-                        .query(
-                            'INSERT INTO im_movement_transaction (id, user_id) VALUES (?,?)',
-                            [transaction_id,datum.user_id],
-                            function(err,res) {
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    for(let i=0; i<datum.items.length; i++) {
-                                        mysql.use(db)
-                                        .query(
-                                            'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
-                                            [datum.items[i].id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
-                                            function(err1, res1) {
-                                                if (err1) {
-                                                    reject(err1);
-                                                } else {
-                                                    if(i == datum.items.length-1) {
-                                                        resolve([datum.items, {message: "Items successfully withdrawn", transaction_id: transaction_id}]);
-                                                    }
-                                                }
-                                            }
-                                        )
-                                        .end();
-                                    }
-                                }
-                            }
-                        ).end()
+                if(results[0]==true && results[1]==true){                    
+                    fordeposit();
                 }
                 
             })
+
+            function fordeposit(){                    
+                    
+                    function check_location(cb){
+
+                        let noLocation = 0;
+            
+                        for(let i=0; i<datum.items.length; i++){
+                            mysql.use(db)
+                                .query(
+                                    'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
+                                    [datum.items[i].destination],
+                                    function(error, result) {
+                                        if(error) {
+                                            reject(error);
+                                        }else{
+                                            if(result.length==0){
+                                                noLocation = 1;                                        
+                                            }else{
+                                                /*datum.items[i].id = uuid.v4();
+                                                datum.items[i].user_id = datum.user_id;
+                                                datum.items[i].type = "DEPOSIT"
+            
+                                                if(datum.items[i].expiration_date == undefined){
+                                                    datum.items[i].expiration_date = null
+                                                }
+            
+                                                if(datum.items[i].remarks == undefined){
+                                                    datum.items[i].remarks = null
+                                                }*/
+
+                                                let itemOk = {
+                                                    item_id         : datum.items[i].item_id,
+                                                    quantity        : datum.items[i].quantity,
+                                                    id              : uuid.v4(),
+                                                    user_id         : datum.user_id,
+                                                    type            : "DEPOSIT",
+                                                    location_id     : datum.items[i].destination
+                                                }
+        
+            
+                                                if(datum.items[i].expiration_date == undefined){
+                                                    itemOk.expiration_date = null
+                                                }else{                                            
+                                                    itemOk.expiration_date = datum.items[i].expiration_date;          
+                                                }
+            
+                                                if(datum.items[i].remarks == undefined){
+                                                    itemOk.remarks = null
+                                                }else{                                                                                     
+                                                    itemOk.remarks = datum.items[i].remarks
+                                                }
+                                                
+                                                verified.push(itemOk); 
+                                            }
+        
+                                            if(i == datum.items.length-1 && noLocation == 0){
+                                                return cb(null,true);
+                                            }else if(i == datum.items.length-1 && noLocation == 1){
+                                                return cb(null,false);
+                                            }
+                                        }
+                                    }
+                                ).end();
+                        }
+            
+                    }
+            
+                    async.series([check_location], (err, results) => {
+                        if (err) {
+                            return next(err);
+                        }
+            
+                        if(results[0]==false){
+                            reject("Location not found no items were saved");
+                        }
+                        
+                        if(results[0]==true){
+
+
+                            const transaction_id = uuid.v4();
+        
+                            mysql.use(db)
+                                .query(
+                                    'INSERT INTO im_movement_transaction (id, user_id, type) VALUES (?,?,"TRANSFER")',
+                                    [transaction_id,datum.user_id],
+                                    function(err,res){
+                                        if (err) {
+                                            reject(err);
+                                        }else{
+                                            for(let i=0; i<verified.length; i++){
+                                                mysql.use(db)
+                                                .query(
+                                                    'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
+                                                    [verified[i].id, verified[i].item_id, verified[i].quantity, verified[i].location_id, verified[i].expiration_date, verified[i].remarks, verified[i].user_id, verified[i].type,transaction_id],
+                                                    function(err1, res1) {
+                                                        if (err1) {
+                                                            reject(err1);
+                                                        }else {
+                                                            if(i == verified.length-1){
+                        
+                                                                resolve([verified, {message: "Items successfully transferred", transaction_id: transaction_id}]);
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                                .end();
+                                            }
+                                        }
+                                    }
+                                ).end()
+        
+            
+                        }
+            
+                    })
+
+
+                }
+            
             
         })
   
@@ -220,4 +327,3 @@ module.exports = function(db_name) {
 
     return module;
 };
-
