@@ -76,7 +76,7 @@ module.exports = function(db_name) {
 
                     mysql.use(db)
                         .query(
-                            'INSERT INTO im_movement_transaction (id, user_id) VALUES (?,?)',
+                            'INSERT INTO im_movement_transaction (id, user_id, type) VALUES (?,?,"DEPOSIT")',
                             [transaction_id,datum.user_id],
                             function(err,res){
                                 if (err) {
