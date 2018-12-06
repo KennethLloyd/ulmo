@@ -3,6 +3,7 @@
 const mysql             = require('anytv-node-mysql');
 const config            = require(__dirname + '/config/config');
 const promise           = require('promise');
+const async     = require('async');
 
 mysql.add('jeeves_db', config.JEEVES_DB);
 
@@ -33,39 +34,66 @@ module.exports = function(db_name) {
     };
 
 
+
     module.item_movement_history = (data) => {
-        return new Promise(function(resolve, reject) {     
-            
-                let datum = data[0];
+        return new Promise(function(resolve, reject) {
 
-                let qry     = 'SELECT id, item_id, quantity, location_id, expiration_date, remarks, type';
-                let count   = 'SELECT COUNT(id) ';
-                let from    = ' FROM im_item_movement WHERE deleted IS NULL AND user_id = '+mysql.escape(datum.user_id);
-                let where1  = ' AND location_id IN ('+mysql.escape(datum.location_id)+')';
-                let where2  = ' AND item_id IN ('+mysql.escape(datum.item_id)+')';
-                let limit   = ' LIMIT '+datum.page+','+datum.limit;
+            let datum = data[0];            
 
-                if(!datum.location_id && !datum.item_id){
+            let transactions = [];
+
+            function getHeaders(cb){
+
+                let qry         = 'SELECT id, created, user_id, type';
+                let count       = 'SELECT count(id)';
+                let from        = ' FROM im_movement_transaction WHERE user_id = '+mysql.escape(datum.user_id);
+                let transaction_id = ' AND transaction_id LIKE '+mysql.escape('%'+datum.type+'%');
+                let type        = ' AND type = '+mysql.escape(datum.type);
+                let daterange   = ' AND (created BETWEEN '+mysql.escape(datum.from)+' AND DATE_ADD('+mysql.escape(datum.to)+',INTERVAL 1 DAY))';
+                let limit       = ' LIMIT '+datum.page+','+datum.limit;
+
+                if(!datum.transaction_id && !datum.type && !datum.daterange){
                     qry += ',('+count+from+') AS "total"';
                     qry += from;
                 }
 
-                if(datum.location_id && !datum.item_id){
-                    qry += ',('+count+from+where1+') AS "total"';
-                    qry += from+where1;
+                if(datum.transaction_id && !datum.type && !datum.daterange){
+                    qry += ',('+count+from+transaction_id+') AS "total"';
+                    qry += from+transaction_id;
                 }
 
-                if(!datum.location_id && datum.item_id){
-                    qry += ',('+count+from+where2+') AS "total"';
-                    qry += from+where2;
+                if(!datum.transaction_id && datum.type && !datum.daterange){
+                    qry += ',('+count+from+type+') AS "total"';
+                    qry += from+type;
                 }
 
-                if(datum.location_id && datum.item_id){
-                    qry += ',('+count+from+where1+where2+') AS "total"';
-                    qry += from+where1+where2;
+                if(!datum.transaction_id && !datum.type && datum.daterange){
+                    qry += ',('+count+from+daterange+') AS "total"';
+                    qry += from+daterange;
                 }
 
-                let finalqry = qry+limit;        
+                if(datum.transaction_id && datum.type && !datum.daterange){
+                    qry += ',('+count+from+transaction_id+type+') AS "total"';
+                    qry += from+transaction_id+type;
+                }
+
+                if(!datum.transaction_id && datum.type && datum.daterange){
+                    qry += ',('+count+from+daterange+type+') AS "total"';
+                    qry += from+daterange+type;
+                }
+
+                if(datum.transaction_id && !datum.type && datum.daterange){
+                    qry += ',('+count+from+daterange+transaction_id+') AS "total"';
+                    qry += from+daterange+transaction_id;
+                }
+
+                if(datum.transaction_id && datum.type && datum.daterange){
+                    qry += ',('+count+from+daterange+transaction_id+type+') AS "total"';
+                    qry += from+daterange+transaction_id+type;
+                }
+
+
+                let finalqry = qry+limit;   
                 
                 mysql.use(db)
                 .query(
@@ -73,35 +101,93 @@ module.exports = function(db_name) {
                     function(err, result, args, last_query){
                         if (err) {
                             reject(err);
-                        }else if(result.length==0){
-                            resolve({total:0, locations:[]});
-                        }else{
-                            
-                            let total = result[0].total;
-                            let items = [];
-                            let i =0;                            
-                            for(i=0; i<result.length;i++){
+                        }
 
-                                items.push({
-                                    id              : result[i].id,
-                                    item_id         : result[i].item_id, 
-                                    quantity        : result[i].quantity,
-                                    location_id     : result[i].location_id,
-                                    expiration_date : result[i].expiration_date,
-                                    remarks         : result[i].remarks,
-                                    type            : result[i].type
-                                });
-
-                                if(i==result.length-1){                                    
-                                    resolve({total:total, items:items});
+                        if(result.length==0){
+                            resolve({total:0, transactions:[]})
+                        }else{         
+                            for(let i=0; i<result.length; i++){
+                                let transaction = {
+                                    id      : result[i].id,
+                                    created : result[i].created,
+                                    user_id : result[i].user_id,
+                                    type    : result[i].type                                    
+                                }
+                                transactions.push(transaction)
+                                if(i==result.length-1){           
+                                    return cb(null, [true,result[0].total])
                                 }
                             }
                             
-                        } 
+                        }
                     }
-                ).end();        
+                ).end()
+            }
+
+
+            function getItems(cb){
+
+                let counter = 0;
+                
+                for(let i=0; i<transactions.length; i++){
+                    mysql.use(db)
+                    .query(
+                        'SELECT * FROM im_item_movement WHERE transaction_id = ?',
+                        transactions[i].id,
+                        function(err, result, args, last_query){
+                            if (err) {
+                                reject(err);
+                            }
+                            
+                            transactions[i].items=[];
+
+                            for(let a=0; a<result.length; a++){
+                                transactions[i].items.push({
+                                    id              : result[a].id,
+                                    transaction_id  : result[a].transaction_id,
+                                    item_id         : result[a].item_id,
+                                    quantity        : result[a].quantity,
+                                    location_id     : result[a].location_id,
+                                    expiration_date : result[a].expiration_date,
+                                    remarks         : result[a].remarks,
+                                    type            : result[a].type,                                    
+                                    user_id         : result[a].user_id,
+                                    created         : result[a].created,
+                                    updated         : result[a].updated,
+                                    deleted         : result[a].deleted
+                                });
+
+                                if(a == result.length-1){
+                                    counter++;
+                                }
+
+                            }
+                            
+                            if(counter == transactions.length){
+                                return cb(null, true)
+                            }
+                        }
+                    ).end()
+
+                }
+
+            }
+            
+
+            async.series([getHeaders,getItems], (err, results) => {
+                if (err) {
+                    reject(err);
+                }
+                
+                if(results[0][0] == true && results[1] == true){    
+                    resolve([{total: results[0][1]},transactions]);
+                }
+            
+            })
+
 
         })
+    
     }
 
 
