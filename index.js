@@ -46,7 +46,7 @@ module.exports = function(db_name) {
 
                 let qry         = 'SELECT id, created, user_id, type';
                 let count       = 'SELECT count(id)';
-                let from        = ' FROM im_movement_transaction WHERE user_id = '+mysql.escape(datum.user_id);
+                let from        = ' FROM im_movement_transaction WHERE user_id IN ('+mysql.escape(datum.user_id)+') ';
                 let transaction_id = ' AND transaction_id LIKE '+mysql.escape('%'+datum.type+'%');
                 let type        = ' AND type = '+mysql.escape(datum.type);
                 let daterange   = ' AND (created BETWEEN '+mysql.escape(datum.from)+' AND DATE_ADD('+mysql.escape(datum.to)+',INTERVAL 1 DAY))';
