@@ -1146,7 +1146,7 @@ module.exports = function(db_name) {
                     }
                     mysql.use(db)
                     .query(
-                        'UPDATE im_cycle_count SET round = ?, status = ? WHERE id = ?', 
+                        'UPDATE im_cycle_count SET round = ?, status = ?, updated = NOW() WHERE id = ?', 
                         [round, status, params.report_id],
                         function(err1, res1) {
                             if (err1) {
@@ -1280,7 +1280,7 @@ module.exports = function(db_name) {
             function get_top_items_with_variance() {
                 mysql.use(db)
                 .query(
-                    'SELECT cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, cd.variance FROM im_cycle_count cc,  im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cc.status = "DONE" AND cc.id = cd.cycle_count_id AND cd.item_id = i.' + item_config.item_id + ' ORDER BY abs(cd.variance) DESC LIMIT 5',
+                    'SELECT cd.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, cd.variance, cd.actual_quantity FROM im_cycle_count cc,  im_cycle_count_details cd, ' + item_config.item_table + ' i WHERE cc.id = cd.cycle_count_id AND cc.id = (SELECT id FROM im_cycle_count WHERE status = "DONE" ORDER BY updated DESC LIMIT 1) AND cd.item_id = i.' + item_config.item_id + ' ORDER BY abs(cd.variance) DESC LIMIT 5',
                     function(err, res) {
                         if (err) {
                             console.log('Error in getting top items with variance inside get dashboard');     
@@ -1288,7 +1288,37 @@ module.exports = function(db_name) {
                         }
                         else {
                             dashboard.variance = res;
-                            get_latest_movements();
+                            get_variance_sum();
+                        }
+                    }
+                )
+            }
+
+            function get_variance_sum() {
+                mysql.use(db)
+                .query(
+                    'SELECT SUM(cd.variance) AS positive_variance FROM im_cycle_count cc, im_cycle_count_details cd WHERE cc.id = cd.cycle_count_id AND cc.id = (SELECT id FROM im_cycle_count WHERE status = "DONE" ORDER BY updated DESC LIMIT 1) AND cd.variance >= 0',
+                    function(err, res) {
+                        if (err) {
+                            console.log('Error in getting positive variances');     
+                            reject(err);
+                        }
+                        else {
+                            dashboard.positive_variance = res[0].positive_variance;
+                            mysql.use(db)
+                            .query(
+                                'SELECT SUM(cd.variance) AS negative_variance FROM im_cycle_count cc, im_cycle_count_details cd WHERE cc.id = cd.cycle_count_id AND cc.id = (SELECT id FROM im_cycle_count WHERE status = "DONE" ORDER BY updated DESC LIMIT 1) AND cd.variance < 0',
+                                function(err1, res1) {
+                                    if (err1) {
+                                        console.log('Error in getting negative variances');     
+                                        reject(err);
+                                    }
+                                    else {
+                                        dashboard.negative_variance = res1[0].negative_variance;
+                                        get_latest_movements();
+                                    }
+                                }
+                            )
                         }
                     }
                 )
