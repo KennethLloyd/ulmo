@@ -53,6 +53,7 @@ module.exports = function(db_name) {
                 params.is_grouped = 1;
             }
 
+            params.user_id = parseInt(params.user_id);
             /*if (params.page === -1) {
                 pagination = "";
             }
@@ -60,7 +61,6 @@ module.exports = function(db_name) {
                 pagination = "LIMIT " + params.page + ", " + params.limit; 
             }*/
             pagination = "";
-            
 
             get_latest_balance_header();
 
@@ -475,7 +475,7 @@ module.exports = function(db_name) {
 
                             var total_items = final_items.length;
 
-                            if (params.page != -1) {
+                            if (params.page !== -1) {
                                 final_items = paginate(final_items, params.limit, params.page);
                             }
                             response[x].total = total_items;
@@ -535,13 +535,9 @@ module.exports = function(db_name) {
             var inventory = [];
             var balance_id = uuid.v4();
             var current_location = null;
+            params.user_id = parseInt(params.user_id);
 
-            mysql.use(db)
-            .query(
-                'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
-                [balance_id, params.label, params.user_id],
-                get_details
-            )   
+            get_details();  
 
             function get_details(err, result) {
                 if (!err) {
@@ -557,7 +553,7 @@ module.exports = function(db_name) {
                     module.get_current_inventory(retrieve_params)
                     .then(function(response) {
                         inventory = response;
-                        async.each(inventory, prepare_save_details, send_response);
+                        save_header();
                     })
                     .catch(function(err) {           
                         winston.error('Error in getting current inventory', err);           
@@ -568,6 +564,23 @@ module.exports = function(db_name) {
                     console.log(err);
                     reject(err); 
                 }
+            }
+
+            function save_header() {
+                mysql.use(db)
+                .query(
+                    'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
+                    [balance_id, params.label, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log("Error in saving balance header");
+                            reject(err);
+                        }
+                        else {
+                            async.each(inventory, prepare_save_details, send_response);
+                        }
+                    }
+                ) 
             }
 
             function prepare_save_details(row, callback) {
@@ -619,6 +632,7 @@ module.exports = function(db_name) {
     module.get_balance_history = (params) => {
         return new Promise(function(resolve, reject) {
             var ownership = null;
+            params.user_id = parseInt(params.user_id);
 
             function format_date(date) {
                 if (date != null) {
@@ -711,6 +725,7 @@ module.exports = function(db_name) {
             var response = [];
             var pagination = null;
             var ownership = null;
+            params.user_id = parseInt(params.user_id);
 
             if (typeof params.search_item === 'undefined' || params.search_item === undefined) {
                 params.search_item = '';
@@ -868,6 +883,8 @@ module.exports = function(db_name) {
 
     module.get_expiration_date = (params) => {
         return new Promise(function(resolve, reject) {
+            params.user_id = parseInt(params.user_id);
+
             mysql.use(db)
             .query(
                 'SELECT * FROM im_location WHERE id = ? AND deleted IS NULL', 
