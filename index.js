@@ -3,7 +3,7 @@
 const mysql             = require('anytv-node-mysql');
 const config            = require(__dirname + '/config/config');
 const promise           = require('promise');
-const UUID              = require('uuid');
+const uuid              = require('uuid');
 
 
 mysql.add('jeeves_db', config.JEEVES_DB);
@@ -39,10 +39,8 @@ module.exports = function(db_name) {
     module.create_location = (data) => {
         return new Promise(function(resolve, reject) {
             
-            const uuid =UUID.v4();
-
             let datum = data[0];
-                datum.id=uuid
+                datum.id=uuid.v4();
             let deleted = null;
             
             if(datum.status==false || datum.status.toLowerCase()=="false"){
@@ -219,11 +217,38 @@ module.exports = function(db_name) {
                             updated     : result[0].updated,
                             deleted     : result[0].deleted,
                             user_id     : result[0].user_id,
-                            status      : status
+                            status      : status,
+                            franchise_id: []
                         };
-                                                      
-                        resolve(location);
-                            
+
+                        mysql.use(db)
+                        .query(
+                            'SELECT id, location_id, franchise_id FROM im_location_franchise WHERE location_id = ? AND deleted IS NULL',
+                            datum.id,
+                            function(error, resultA){
+                                if (error) {
+                                    reject(error);
+                                }
+
+                                if(resultA.length==0){    
+                                    resolve(location);
+
+                                }else if(resultA.length){
+                                    for(let i=0; i<resultA.length; i++){
+                                        location.franchise_id.push({
+                                            id          : resultA[i].id,
+                                            location_id : resultA[i].location_id,
+                                            franchise_id: resultA[i].franchise_id
+                                        })
+
+                                        if(i==resultA.length-1){
+                                            resolve(location);
+                                        }
+                                    }
+                                }
+
+                            }
+                        ).end();                            
                         
                     } 
                     
@@ -434,6 +459,140 @@ module.exports = function(db_name) {
             start();
 
 
+        })
+    }
+
+    module.location_add_franchise = (data) => {
+        return new Promise(function(resolve, reject) {
+            
+            let datum = data[0];
+            
+            function checkDuplicate(){
+                
+                const uniArr = [...(new Set(datum.franchise_id))]
+
+                if(datum.franchise_id.length == uniArr.length){
+
+                    mysql.use(db)
+                    .query(
+                        'SELECT * FROM im_location_franchise WHERE franchise_id IN (?) AND deleted IS NULL',
+                        uniArr,
+                        function(error, result){
+                            if(error){
+                                reject(error)
+                            }
+                                
+                            if(result.length == 0){
+                                addFranchise()
+                            }else{
+                                reject(["Franchise id already exist"])
+                            }
+
+                        }
+                    ).end()
+
+                }else{
+                    reject(["Franchise entry has duplicates"])
+                }
+
+            }
+
+
+            function addFranchise(){
+
+                let items = [];
+
+                for(let i=0; i<datum.franchise_id.length; i++){
+                    items.push([uuid.v4(), datum.location_id,datum.franchise_id[i]]);
+                    if(i == datum.franchise_id.length-1){
+                        
+                        let qry = 'INSERT INTO im_location_franchise (id, location_id, franchise_id) VALUES '+mysql.escape(items)
+
+                        mysql.use(db)
+                        .query(
+                            qry,
+                            function(error, result) {
+                                if (error) {
+                                    reject(error);
+                                }else{
+                                    resolve({message:    'Successfully added franchise to location'})
+                                    
+                                }
+                                                    
+                            }
+                        )
+                        .end();
+
+                    }
+                }               
+                
+            }
+
+            checkDuplicate()
+
+            
+        })
+    }
+
+    module.location_remove_franchise = (data) => {
+        return new Promise(function(resolve, reject) {
+            
+            let datum = data[0];
+
+            function checkDuplicate(){
+                
+                const uniArr = [...(new Set(datum.franchise_id))]
+
+                if(datum.franchise_id.length == uniArr.length){
+
+                    mysql.use(db)
+                    .query(
+                        'SELECT * FROM im_location_franchise WHERE franchise_id IN (?) AND deleted IS NOT NULL',
+                        uniArr,
+                        function(error, result){
+                            if(error){
+                                reject(error)
+                            }
+                                
+                            if(result.length == 0){
+                                removeFranchise()
+                            }else{
+                                reject(["Franchise id not found"])
+                            }
+
+                        }
+                    ).end()
+
+                }else{
+                    reject(["Franchise entry has duplicates"])
+                }
+
+            }
+
+
+            function removeFranchise(){
+  
+                let qry = 'UPDATE im_location_franchise SET deleted = NOW() WHERE location_id = '+mysql.escape(datum.location_id)+' AND franchise_id IN ('+mysql.escape(datum.franchise_id)+')';
+
+                mysql.use(db)
+                .query(
+                    qry,
+                    function(error, result) {
+                        if (error) {
+                            reject(error);
+                        }else{
+                            resolve({message:    'Successfully removed franchise to location'})
+                            
+                        }
+                                            
+                    }
+                )
+                .end();
+                
+            }
+
+            checkDuplicate()
+            
         })
     }
 
