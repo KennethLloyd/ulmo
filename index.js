@@ -1606,7 +1606,7 @@ module.exports = function(db_name) {
                                 });
 
                                 if(i==result.length-1){                                    
-                                    resolve({total:total, locations:locations});
+                                    resolve({total:total, items:locations});
                                 }
                             }
                             
