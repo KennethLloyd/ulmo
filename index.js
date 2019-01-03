@@ -1570,7 +1570,7 @@ module.exports = function(db_name) {
                                 });
 
                                 if(i==result.length-1){                                    
-                                    resolve({total:total, locations:locations});
+                                    resolve({total:total, items:locations});
                                 }
                             }
                             
@@ -1595,7 +1595,7 @@ module.exports = function(db_name) {
                     if (err) {
                         reject(err);
                     }else if(result.length==0){
-                        resolve([]);
+                        resolve();
                     }else{                        
                      
                         let status = true;
