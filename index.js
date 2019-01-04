@@ -869,7 +869,7 @@ module.exports = function(db_name) {
                 pagination = "LIMIT " + params.page + ", " + params.limit; 
             }
 
-            if (params.jeeves === 1) {
+            if (params.jeeves == 1) {
                 go_jeeves();
             }
             else {
