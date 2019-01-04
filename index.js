@@ -685,73 +685,80 @@ module.exports = function(db_name) {
             params.from_date = format_date(params.from_date);
             params.to_date = format_date(params.to_date);
 
-            if (params.from_date !== null && params.to_date !== null) {
-                mysql.use(db)
-                .query(
-                    'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
-                    ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
-                    function(err1, res1) {
-                        if (err1) {
-                            reject(err1);
-                        }
-
-                        else {
-                            total = res1[0].total;
-                            mysql.use(db)
-                            .query(
-                                'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
-                                ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
-                                function(err2, res2) {
-                                    if (err2) {
-                                        reject(err2);
-                                    }
-
-                                    else {
-                                        response.total = total;
-                                        response.items = res2;
-                                        resolve(response);
-                                    }
-                                }
-                            )
-                            .end();
-                        }
-                    }
-                )
-                .end();
+            if (params.jeeves === 1) {
+                console.log("Hey jeeves");
+                go_jeeves();
             }
+
             else {
-                mysql.use(db)
-                .query(
-                    'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
-                    ["%"+params.search+"%", params.page, params.limit],
-                    function(err1, res1) {
-                        if (err1) {
-                            reject(err1);
-                        }
-
-                        else {
-                            total = res1[0].total;
-                            mysql.use(db)
-                            .query(
-                                'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
-                                ["%"+params.search+"%", params.page, params.limit],
-                                function(err2, res2) {
-                                    if (err2) {
-                                        reject(err1);
+                if (params.from_date !== null && params.to_date !== null) {
+                    mysql.use(db)
+                    .query(
+                        'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
+                        ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
+                        function(err1, res1) {
+                            if (err1) {
+                                reject(err1);
+                            }
+    
+                            else {
+                                total = res1[0].total;
+                                mysql.use(db)
+                                .query(
+                                    'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
+                                    ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
+                                    function(err2, res2) {
+                                        if (err2) {
+                                            reject(err2);
+                                        }
+    
+                                        else {
+                                            response.total = total;
+                                            response.items = res2;
+                                            resolve(response);
+                                        }
                                     }
-
-                                    else {
-                                        response.total = total;
-                                        response.items = res2;
-                                        resolve(response);
-                                    }
-                                }
-                            )
-                            .end();     
+                                )
+                                .end();
+                            }
                         }
-                    }
-                )
-                .end();
+                    )
+                    .end();
+                }
+                else {
+                    mysql.use(db)
+                    .query(
+                        'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
+                        ["%"+params.search+"%", params.page, params.limit],
+                        function(err1, res1) {
+                            if (err1) {
+                                reject(err1);
+                            }
+    
+                            else {
+                                total = res1[0].total;
+                                mysql.use(db)
+                                .query(
+                                    'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
+                                    ["%"+params.search+"%", params.page, params.limit],
+                                    function(err2, res2) {
+                                        if (err2) {
+                                            reject(err1);
+                                        }
+    
+                                        else {
+                                            response.total = total;
+                                            response.items = res2;
+                                            resolve(response);
+                                        }
+                                    }
+                                )
+                                .end();     
+                            }
+                        }
+                    )
+                    .end();
+                }
             }
         }) 
     }
