@@ -1863,7 +1863,7 @@ module.exports = function(db_name) {
                                                         message     : "Successfully deactivated location"
                                                     };
 
-                                                    resolve(location);
+                                                    resolve([location]);
                                                 }
                                             }
                                         ).end()
@@ -1905,7 +1905,7 @@ module.exports = function(db_name) {
                                                     };
                                                     
                                                 
-                                                    resolve(location);
+                                                    resolve([location]);
                                                 }
                                             }
                                         ).end()
