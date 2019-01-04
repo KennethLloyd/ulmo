@@ -1058,6 +1058,50 @@ module.exports = function(db_name) {
                             }
                     )
                 }
+                else {
+                    mysql.use(db)
+                    .query(
+                        `SELECT COUNT(*) AS total, SUM(bhd.quantity) AS quantity
+                            FROM im_balance_history bh, im_balance_history_details bhd, material m
+                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                            AND bhd.item_id = m.id
+                            AND m.name LIKE ?
+                            GROUP BY bhd.item_id`,
+                            [params.balance_id, "%"+params.search_item+"%"],
+                            function(err, res) {
+                                if (err) {
+                                    console.log(err);
+                                    reject(err);
+                                }
+                                else {
+                                    jeeves_response.total = res[0].total;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bhd.id, bhd.item_id, m.code AS item_code, m.name AS item_name,
+                                            bhd.expiration_date, SUM(bhd.quantity) AS quantity
+                                            FROM im_balance_history bh, im_balance_history_details bhd, material m
+                                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                                            AND bhd.item_id = m.id
+                                            AND m.name LIKE ?
+                                            ORDER BY l.name
+                                            GROUP BY bhd.item_id
+                                            ` + pagination,
+                                            [params.balance_id, "%"+params.search_item+"%"],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    console.log(err1);
+                                                    reject(err1);
+                                                }
+                                                else {
+                                                    jeeves_response.items = res1;
+                                                    resolve(jeeves_response);
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                    )
+                }
             }
         })
     }
