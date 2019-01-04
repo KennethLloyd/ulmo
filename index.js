@@ -781,6 +781,7 @@ module.exports = function(db_name) {
                                             FROM im_balance_history bh, im_balance_history_franchise bhf
                                             WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
                                             AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?)
+                                            ORDER BY bh.created DESC
                                             LIMIT ?,?`,
                                             [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
                                             function(err2, res2) {
@@ -820,6 +821,7 @@ module.exports = function(db_name) {
                                             FROM im_balance_history bh, im_balance_history_franchise bhf
                                             WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
                                             AND bh.label LIKE ?
+                                            ORDER BY bh.created DESC
                                             LIMIT ?,?`,
                                             [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.page, params.limit],
                                             function(err2, res2) {
@@ -1018,8 +1020,9 @@ module.exports = function(db_name) {
                             FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
                             WHERE bh.id = bhd.balance_id AND bh.id = ?
                             AND bhd.item_id = m.id
-                            AND bhd.location_id = l.id`,
-                            [params.balance_id],
+                            AND bhd.location_id = l.id
+                            AND l.name LIKE ? AND m.name LIKE ?`,
+                            [params.balance_id, "%"+params.search_location+"%", "%"+params.search_item+"%"],
                             function(err, res) {
                                 if (err) {
                                     console.log(err);
@@ -1035,9 +1038,11 @@ module.exports = function(db_name) {
                                             FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
                                             WHERE bh.id = bhd.balance_id AND bh.id = ?
                                             AND bhd.item_id = m.id
-                                            AND bhd.location_id = l.id 
+                                            AND bhd.location_id = l.id
+                                            AND l.name LIKE ? AND m.name LIKE ?
+                                            ORDER BY l.name 
                                             ` + pagination,
-                                            [params.balance_id],
+                                            [params.balance_id, "%"+params.search_location+"%", "%"+params.search_item+"%"],
                                             function(err1, res1) {
                                                 if (err1) {
                                                     console.log(err1);
