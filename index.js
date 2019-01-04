@@ -1816,7 +1816,7 @@ module.exports = function(db_name) {
                                         user_id:     datum.user_id          
                                     };
                                         
-                                    resolve(location)
+                                    resolve([location])
                                     
                                 }
                                                     
