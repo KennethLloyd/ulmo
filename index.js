@@ -1074,7 +1074,7 @@ module.exports = function(db_name) {
                                     reject(err);
                                 }
                                 else {
-                                    jeeves_response.total = res[0].total;
+                                    jeeves_response.total = res.length;
                                     mysql.use(db)
                                     .query(
                                         `SELECT bhd.id, bhd.item_id, m.code AS item_code, m.name AS item_name,
