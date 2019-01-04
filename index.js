@@ -1437,8 +1437,12 @@ module.exports = function(db_name) {
                 datum.id=uuid.v4();
             let deleted = null;
             
-            if(datum.status==false || datum.status.toLowerCase()=="false"){
+            if(datum.status==false){
                 deleted = new Date();
+            }
+
+            if(datum.status==undefined){
+                deleted = null
             }
                      
 
