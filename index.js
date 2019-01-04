@@ -633,8 +633,6 @@ module.exports = function(db_name) {
         return new Promise(function(resolve, reject) {
             var ownership = null;
             params.user_id = parseInt(params.user_id);
-            var total = null;
-            var response = {};
 
             function format_date(date) {
                 if (date != null) {
@@ -688,7 +686,7 @@ module.exports = function(db_name) {
             if (params.from_date !== null && params.to_date !== null) {
                 mysql.use(db)
                 .query(
-                    'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
+                    'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
                     ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
                     function(err1, res1) {
                         if (err1) {
@@ -696,24 +694,7 @@ module.exports = function(db_name) {
                         }
 
                         else {
-                            total = res1[0].total;
-                            mysql.use(db)
-                            .query(
-                                'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?) LIMIT ?,?',
-                                ["%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
-                                function(err2, res2) {
-                                    if (err2) {
-                                        reject(err2);
-                                    }
-
-                                    else {
-                                        response.total = total;
-                                        response.items = res2;
-                                        resolve(response);
-                                    }
-                                }
-                            )
-                            .end();
+                            resolve(res1);
                         }
                     }
                 )
@@ -722,7 +703,7 @@ module.exports = function(db_name) {
             else {
                 mysql.use(db)
                 .query(
-                    'SELECT COUNT(*) AS total FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
+                    'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
                     ["%"+params.search+"%", params.page, params.limit],
                     function(err1, res1) {
                         if (err1) {
@@ -730,24 +711,7 @@ module.exports = function(db_name) {
                         }
 
                         else {
-                            total = res1[0].total;
-                            mysql.use(db)
-                            .query(
-                                'SELECT bh.id, bh.label, bh.created, bh.updated, bh.deleted, bh.user_id, u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_balance_history bh, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = bh.user_id ' + ownership + ' AND bh.label LIKE ? LIMIT ?,?',
-                                ["%"+params.search+"%", params.page, params.limit],
-                                function(err2, res2) {
-                                    if (err2) {
-                                        reject(err1);
-                                    }
-
-                                    else {
-                                        response.total = total;
-                                        response.items = res2;
-                                        resolve(response);
-                                    }
-                                }
-                            )
-                            .end();     
+                            resolve(res1);
                         }
                     }
                 )
@@ -1473,8 +1437,12 @@ module.exports = function(db_name) {
                 datum.id=uuid.v4();
             let deleted = null;
             
-            if(datum.status==false || datum.status.toLowerCase()=="false"){
+            if(datum.status==false){
                 deleted = new Date();
+            }
+
+            if(datum.status==undefined){
+                deleted = null
             }
                      
 
@@ -1631,7 +1599,7 @@ module.exports = function(db_name) {
                     if (err) {
                         reject(err);
                     }else if(result.length==0){
-                        resolve([]);
+                        resolve();
                     }else{                        
                      
                         let status = true;
@@ -1806,7 +1774,7 @@ module.exports = function(db_name) {
     module.update_location = (data) => {
         return new Promise(function(resolve, reject) {
             
-            let datum = data[0];
+            let datum = data[0];            
 
             function start(){                
                 mysql.use(db)
@@ -1825,6 +1793,10 @@ module.exports = function(db_name) {
                 if (result.length > 1) {             
                     reject({code: "DUP_ENTRY"})
                 }else if (result.length == 1){
+
+                    if(datum.status==undefined){
+                        datum.deleted = result[0].deleted
+                    }
     
                     if(result[0].id == datum.id){
                         mysql.use(db)
