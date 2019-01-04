@@ -1480,8 +1480,12 @@ module.exports = function(db_name) {
                 datum.id=uuid.v4();
             let deleted = null;
             
-            if(datum.status==false || datum.status.toLowerCase()=="false"){
+            if(datum.status==false){
                 deleted = new Date();
+            }
+
+            if(datum.status==undefined){
+                deleted = null
             }
                      
 
@@ -1638,7 +1642,7 @@ module.exports = function(db_name) {
                     if (err) {
                         reject(err);
                     }else if(result.length==0){
-                        resolve([]);
+                        resolve();
                     }else{                        
                      
                         let status = true;
@@ -1813,7 +1817,7 @@ module.exports = function(db_name) {
     module.update_location = (data) => {
         return new Promise(function(resolve, reject) {
             
-            let datum = data[0];
+            let datum = data[0];            
 
             function start(){                
                 mysql.use(db)
@@ -1832,6 +1836,10 @@ module.exports = function(db_name) {
                 if (result.length > 1) {             
                     reject({code: "DUP_ENTRY"})
                 }else if (result.length == 1){
+
+                    if(datum.status==undefined){
+                        datum.deleted = result[0].deleted
+                    }
     
                     if(result[0].id == datum.id){
                         mysql.use(db)
