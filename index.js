@@ -1012,17 +1012,13 @@ module.exports = function(db_name) {
             function go_jeeves() {
                 var jeeves_response = {};
                 if (params.is_breakdown == 1) { //default for specific locations
-                    console.log("HERE");
                     mysql.use(db)
                     .query(
-                        `SELECT bhd.id, bhd.location_id AS location_id, l.name AS location_name, 
-                            bhd.item_id, m.code AS item_code, m.name AS item_name,
-                            bhd.expiration_date 
+                        `SELECT COUNT(*) AS total
                             FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
                             WHERE bh.id = bhd.balance_id AND bh.id = ?
                             AND bhd.item_id = m.id
-                            AND bhd.location_id = l.id 
-                            ` + pagination,
+                            AND bhd.location_id = l.id`,
                             [params.balance_id],
                             function(err, res) {
                                 if (err) {
@@ -1030,9 +1026,29 @@ module.exports = function(db_name) {
                                     reject(err);
                                 }
                                 else {
-                                    console.log("HERE2");
-                                    jeeves_response.items = res;
-                                    resolve(jeeves_response);
+                                    jeeves_response.total = res[0].total;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bhd.id, bhd.location_id AS location_id, l.name AS location_name, 
+                                            bhd.item_id, m.code AS item_code, m.name AS item_name,
+                                            bhd.expiration_date, bhd.quantity 
+                                            FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
+                                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                                            AND bhd.item_id = m.id
+                                            AND bhd.location_id = l.id 
+                                            ` + pagination,
+                                            [params.balance_id],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    console.log(err1);
+                                                    reject(err1);
+                                                }
+                                                else {
+                                                    jeeves_response.items = res1;
+                                                    resolve(jeeves_response);
+                                                }
+                                            }
+                                    )
                                 }
                             }
                     )
