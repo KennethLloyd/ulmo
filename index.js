@@ -1774,7 +1774,7 @@ module.exports = function(db_name) {
     module.update_location = (data) => {
         return new Promise(function(resolve, reject) {
             
-            let datum = data[0];
+            let datum = data[0];            
 
             function start(){                
                 mysql.use(db)
@@ -1793,6 +1793,10 @@ module.exports = function(db_name) {
                 if (result.length > 1) {             
                     reject({code: "DUP_ENTRY"})
                 }else if (result.length == 1){
+
+                    if(datum.status==undefined){
+                        datum.deleted = result[0].deleted
+                    }
     
                     if(result[0].id == datum.id){
                         mysql.use(db)
