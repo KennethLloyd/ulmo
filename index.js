@@ -869,7 +869,6 @@ module.exports = function(db_name) {
                 pagination = "LIMIT " + params.page + ", " + params.limit; 
             }
 
-            console.log(params.jeeves);
             if (params.jeeves === 1) {
                 go_jeeves();
             }
@@ -1013,14 +1012,16 @@ module.exports = function(db_name) {
             function go_jeeves() {
                 var jeeves_response = {};
                 if (params.is_breakdown === 1) { //default for specific locations
+                    console.log("HERE");
                     mysql.use(db)
                     .query(
-                        `SELECT bhd.id, l.id AS location_id, l.name AS location_name, 
+                        `SELECT bhd.id, bhd.location_id AS location_id, l.name AS location_name, 
                             bhd.item_id, m.code AS item_code, m.name AS item_name,
                             bhd.expiration_date 
                             FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
                             WHERE bh.id = bhd.balance_id AND bh.id = ?
-                            AND bhd.item_id = m.id 
+                            AND bhd.item_id = m.id
+                            AND bhd.location_id = l.id 
                             ` + pagination,
                             [params.balance_id],
                             function(err, res) {
@@ -1029,6 +1030,7 @@ module.exports = function(db_name) {
                                     reject(err);
                                 }
                                 else {
+                                    console.log("HERE2");
                                     jeeves_response.items = res;
                                     resolve(jeeves_response);
                                 }
