@@ -1083,8 +1083,8 @@ module.exports = function(db_name) {
                                             WHERE bh.id = bhd.balance_id AND bh.id = ?
                                             AND bhd.item_id = m.id
                                             AND m.name LIKE ?
-                                            ORDER BY l.name
                                             GROUP BY bhd.item_id
+                                            ORDER BY m.name
                                             ` + pagination,
                                             [params.balance_id, "%"+params.search_item+"%"],
                                             function(err1, res1) {
