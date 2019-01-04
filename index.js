@@ -1010,9 +1010,8 @@ module.exports = function(db_name) {
             }
 
             function go_jeeves() {
-                console.log(params.is_breakdown);
                 var jeeves_response = {};
-                if (params.is_breakdown === 1) { //default for specific locations
+                if (params.is_breakdown == 1) { //default for specific locations
                     console.log("HERE");
                     mysql.use(db)
                     .query(
