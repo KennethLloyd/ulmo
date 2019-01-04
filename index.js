@@ -686,7 +686,6 @@ module.exports = function(db_name) {
             params.to_date = format_date(params.to_date);
 
             if (params.jeeves === 1) {
-                console.log("Hey jeeves");
                 go_jeeves();
             }
 
@@ -758,6 +757,87 @@ module.exports = function(db_name) {
                         }
                     )
                     .end();
+                }
+            }
+
+            function go_jeeves() {
+                if (params.from_date !== null && params.to_date !== null) { //with specified date
+                    mysql.use(db)
+                    .query(
+                        `SELECT COUNT(*) AS total FROM im_balance_history bh, im_balance_history_franchise bhf
+                            WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
+                            AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?)
+                            LIMIT ?,?`,
+                            [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
+                            function(err1, res1) {
+                                if (err1) {
+                                    reject(err1);
+                                }
+                                else {
+                                    total = res1[0].total;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bh.id, bh.label, bh.created AS date, bhf.franchise_id, bhf.franchisee_id
+                                            FROM im_balance_history bh, im_balance_history_franchise bhf
+                                            WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
+                                            AND bh.label LIKE ? AND (bh.created BETWEEN ? AND ?)
+                                            LIMIT ?,?`,
+                                            [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.from_date, params.to_date, params.page, params.limit],
+                                            function(err2, res2) {
+                                                if (err2) {
+                                                    reject(err2);
+                                                }
+            
+                                                else {
+                                                    response.total = total;
+                                                    response.items = res2;
+                                                    resolve(response);
+                                                }
+                                            }
+                                    )
+                                    .end();
+                                }
+                            }
+                    )
+                }
+                else {
+                    mysql.use(db)
+                    .query(
+                        `SELECT COUNT(*) AS total FROM im_balance_history bh, im_balance_history_franchise bhf
+                            WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
+                            AND bh.label LIKE ?
+                            LIMIT ?,?`,
+                            [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.page, params.limit],
+                            function(err1, res1) {
+                                if (err1) {
+                                    reject(err1);
+                                }
+                                else {
+                                    total = res1[0].total;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bh.id, bh.label, bh.created AS date, bhf.franchise_id, bhf.franchisee_id
+                                            FROM im_balance_history bh, im_balance_history_franchise bhf
+                                            WHERE bh.id = bhf.balance_id AND bhf.franchise_id = ? AND bhf.franchisee_id = ?
+                                            AND bh.label LIKE ?
+                                            LIMIT ?,?`,
+                                            [params.franchise_id, params.franchisee_id, "%"+params.search+"%", params.page, params.limit],
+                                            function(err2, res2) {
+                                                if (err2) {
+                                                    reject(err2);
+                                                }
+            
+                                                else {
+                                                    response.total = total;
+                                                    response.items = res2;
+                                                    resolve(response);
+                                                }
+                                            }
+                                    )
+                                    .end();
+                                }
+                            }
+                    )
                 }
             }
         }) 
