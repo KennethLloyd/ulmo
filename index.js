@@ -43,6 +43,9 @@ module.exports = function(db_name) {
             var balance_date = null;
             var ownership = null; 
 
+            if (typeof params.search_location === 'undefined' || params.search_location === undefined) {
+                params.search_location = '';
+            }
             if (typeof params.search_item === 'undefined' || params.search_item === undefined) {
                 params.search_item = '';
             }
@@ -53,87 +56,132 @@ module.exports = function(db_name) {
                 params.is_grouped = 1;
             }
 
-            params.user_id = parseInt(params.user_id);
-            /*if (params.page === -1) {
-                pagination = "";
+            if (params.jeeves === 1) {
+                go_jeeves();
             }
+
             else {
-                pagination = "LIMIT " + params.page + ", " + params.limit; 
-            }*/
-            pagination = "";
-
-            get_latest_balance_header();
-
-            function get_latest_balance_header() {
-                if (params.user_id === -1) {
-                    ownership = "";
+                params.user_id = parseInt(params.user_id);
+                /*if (params.page === -1) {
+                    pagination = "";
                 }
                 else {
-                    ownership = "user_id = " + params.user_id + " AND";
+                    pagination = "LIMIT " + params.page + ", " + params.limit; 
+                }*/
+                pagination = "";
+
+                get_latest_balance_header();
+
+                function get_latest_balance_header() {
+                    if (params.user_id === -1) {
+                        ownership = "";
+                    }
+                    else {
+                        ownership = "user_id = " + params.user_id + " AND";
+                    }
+
+                    mysql.use(db)
+                    .query(
+                        'SELECT * FROM im_balance_history WHERE ' + ownership + ' deleted IS NULL ORDER BY created DESC LIMIT 1',
+                        [],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else if (!res.length) { //no previous balance
+                                latest_balance = [];
+                                start();
+                            }
+                            else {
+                                balance_date = format_date(res[0].created);
+                                get_latest_balance_details(res[0].id);
+                            }
+                        }
+                    )
                 }
 
-                mysql.use(db)
-                .query(
-                    'SELECT * FROM im_balance_history WHERE ' + ownership + ' deleted IS NULL ORDER BY created DESC LIMIT 1',
-                    [],
-                    function(err, res) {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                        }
-                        else if (!res.length) { //no previous balance
-                            latest_balance = [];
+                function get_latest_balance_details(balance_id) {
+                    var details_params = {
+                        balance_id: balance_id,
+                        location_id: params.location_id,
+                        item_id: params.item_id, 
+                        search_item: params.search_item,
+                        is_breakdown: params.is_breakdown,
+                        is_grouped: params.is_grouped,
+                        page: -1, //to remove pagination in get_inventory
+                        user_id: params.user_id
+                    }
+
+                    module.get_inventory(details_params)
+                        .then(function(response) {
+                            latest_balance = response;
+                            /*for (var i=0;i<latest_balance.length;i++) {
+                                for (var j=0;j<latest_balance[i].items.length;j++) {
+                                    console.log(latest_balance[i].items[j]);
+                                }
+                            }*/
                             start();
+                        })
+                        .catch(function(err) {           
+                            winston.error('Error in getting balance history details', err);           
+                            return next(err);
+                        })
+                }
+
+                function start() {
+                    if (params.user_id === -1) {
+                        ownership = "";
+                    }
+                    else {
+                        ownership = "AND l.user_id = " + params.user_id;
+                    }
+
+                    if (params.is_breakdown == 1) { //default for specific locations
+                        if (params.location_id.length === 0) {
+                            mysql.use(db)
+                            .query(
+                                'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name, l.user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_location l, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = l.user_id ' + ownership + ' AND l.deleted IS NULL AND u.deleted IS NULL ORDER BY l.name',
+                                [],
+                                function(err, res) {
+                                    if (err) {
+                                        console.log(err);
+                                        reject(err);
+                                    }
+                                    else {
+                                        async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                                    }
+                                }
+                            )
                         }
                         else {
-                            balance_date = format_date(res[0].created);
-                            get_latest_balance_details(res[0].id);
+                            mysql.use(db)
+                            .query(
+                                'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name, l.user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_location l, ' + user_config.user_table + ' u WHERE l.id IN (?) ' + ownership + ' AND l.deleted IS NULL AND u.deleted IS NULL ORDER BY l.name',
+                                [params.location_id],
+                                function(err, res) {
+                                    if (err) {
+                                        console.log(err);
+                                        reject(err);
+                                    }
+                                    else {
+                                        async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                                    }
+                                }
+                            )
                         }
                     }
-                )
-            }
+                    else { //location has been set to 'all'
+                        if (params.user_id === -1) {
+                            ownership = "";
+                        }
+                        else {
+                            ownership = "u." + user_config.user_id + " = " + params.user_id + " AND";
+                        }
 
-            function get_latest_balance_details(balance_id) {
-                var details_params = {
-                    balance_id: balance_id,
-                    location_id: params.location_id,
-                    item_id: params.item_id, 
-                    search_item: params.search_item,
-                    is_breakdown: params.is_breakdown,
-                    is_grouped: params.is_grouped,
-                    page: -1, //to remove pagination in get_inventory
-                    user_id: params.user_id
-                }
-
-                module.get_inventory(details_params)
-                    .then(function(response) {
-                        latest_balance = response;
-                        /*for (var i=0;i<latest_balance.length;i++) {
-                            for (var j=0;j<latest_balance[i].items.length;j++) {
-                                console.log(latest_balance[i].items[j]);
-                            }
-                        }*/
-                        start();
-                    })
-                    .catch(function(err) {           
-                        winston.error('Error in getting balance history details', err);           
-                        return next(err);
-                    })
-            }
-
-            function start() {
-                if (params.user_id === -1) {
-                    ownership = "";
-                }
-                else {
-                    ownership = "AND l.user_id = " + params.user_id;
-                }
-
-                if (params.is_breakdown == 1) { //default for specific locations
-                    if (params.location_id.length === 0) {
                         mysql.use(db)
                         .query(
-                            'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name, l.user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_location l, ' + user_config.user_table + ' u WHERE u.' + user_config.user_id + ' = l.user_id ' + ownership + ' AND l.deleted IS NULL AND u.deleted IS NULL ORDER BY l.name',
+                            'SELECT u.' + user_config.user_id + ' AS user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM ' + user_config.user_table + ' u WHERE ' + ownership + ' u.deleted IS NULL',
                             [],
                             function(err, res) {
                                 if (err) {
@@ -141,392 +189,496 @@ module.exports = function(db_name) {
                                     reject(err);
                                 }
                                 else {
-                                    async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                                    async.each(res, fetch_items_no_breakdown, send_response); //get items for each location
                                 }
                             }
                         )
                     }
+                }
+
+                function fetch_items_breakdown(row, callback) {
+                    function send_callback(err, result) {
+                        if (err) {
+                            //winston.error('Error in retrieving current inventory', last_query);
+                            console.log(err);
+                            return callback(err);
+                        }
+                        row['items'] = result;
+                        response.push(row);
+                        return callback();
+                    }
+                    
+                    var deposited = [];
+                    var withdrawn = [];
+
+                    if (params.is_grouped == 1) {
+                        var group_clause = "GROUP BY i." + item_config.item_id;
+                        var exp_clause = "";
+                    }
                     else {
+                        var group_clause = "GROUP BY mv.item_id, mv.expiration_date";
+                        var exp_clause = ", mv.expiration_date";
+                    }
+
+                    if (params.user_id === -1) {
+                        ownership = "";
+                    }
+                    else {
+                        ownership = "AND mv.user_id = " + params.user_id;
+                    }
+                    
+                    if (params.item_id.length === 0) { //all items
+                        //STOCK = SUM(deposited) - SUM(withdrawn)
                         mysql.use(db)
                         .query(
-                            'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name, l.user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM im_location l, ' + user_config.user_table + ' u WHERE l.id IN (?) ' + ownership + ' AND l.deleted IS NULL AND u.deleted IS NULL ORDER BY l.name',
-                            [params.location_id],
+                            'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                            [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                            function(err1, res1) {
+                                if (!err1) {
+                                    deposited = res1;
+                                    mysql.use(db)
+                                    .query(
+                                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? ' + ownership + '  AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                                        [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                        function(err2, res2) {
+                                            if (!err2) {
+                                                withdrawn = res2;
+                                                if (params.is_grouped == 1) {
+                                                    for (var i=0;i<deposited.length;i++) {
+                                                        for (var j=0;j<withdrawn.length;j++) {
+                                                            if (deposited[i].item_id == withdrawn[j].item_id) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    for (var i=0;i<deposited.length;i++) {
+                                                        for (var j=0;j<withdrawn.length;j++) {
+                                                            if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date.toString() == withdrawn[j].expiration_date.toString())) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                send_callback(err2, deposited)
+                                            }
+                                            else {
+                                                console.log(err2);
+                                            }
+                                        }
+                                    )
+                                }
+                                else {
+                                    console.log(err1);
+                                }
+                            }
+                        )
+                    }
+                    else { //specific items
+                        //STOCK = SUM(deposited) - SUM(withdrawn)
+                        mysql.use(db)
+                        .query(
+                            'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                            [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                            function(err1, res1) {
+                                if (!err1) {
+                                    deposited = res1;
+                                    mysql.use(db)
+                                    .query(
+                                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                                        [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                        function(err2, res2) {
+                                            if (!err2) {
+                                                withdrawn = res2;
+                                                if (params.is_grouped == 1) {
+                                                    for (var i=0;i<deposited.length;i++) {
+                                                        for (var j=0;j<withdrawn.length;j++) {
+                                                            if (deposited[i].item_id == withdrawn[j].item_id) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    for (var i=0;i<deposited.length;i++) {
+                                                        for (var j=0;j<withdrawn.length;j++) {
+                                                            if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date.toString() == withdrawn[j].expiration_date.toString())) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                send_callback(err2, deposited)
+                                            }
+                                            else {
+                                                console.log(err2);
+                                            }
+                                        }
+                                    )
+                                }
+                                else {
+                                    console.log(err1);
+                                }
+                            }
+                        )
+                    }
+                }
+
+                function fetch_items_no_breakdown(row, callback) {
+                    function send_callback(err, result, args, last_query) {
+                        if (err) {
+                            winston.error('Error in retrieving current inventory', last_query);
+                            return callback(err);
+                        }
+                        row['items'] = result;
+                        response.push(row);
+                        return callback();
+                    }
+                    
+                    var deposited = [];
+                    var withdrawn = [];
+
+                    if (params.user_id === -1) {
+                        ownership = "";
+                    }
+                    else {
+                        ownership = "AND mv.user_id = " + params.user_id;
+                    }
+
+                    if (params.item_id.length === 0) { //all items
+                        //STOCK = SUM(deposited) - SUM(withdrawn)
+                        mysql.use(db)
+                        .query(
+                            'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' ' + ownership + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                            ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                            function(err1, res1) {
+                                if (!err1) {
+                                    deposited = res1;
+                                    mysql.use(db)
+                                    .query(
+                                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' ' + ownership + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
+                                        ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                        function(err2, res2) {
+                                            if (!err2) {
+                                                withdrawn = res2;
+                                                for (var i=0;i<deposited.length;i++) {
+                                                    for (var j=0;j<withdrawn.length;j++) {
+                                                        if (deposited[i].item_id == withdrawn[j].item_id) {
+                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                send_callback(err2, deposited)
+                                            }
+                                            else {
+                                                console.log(err2);
+                                            }
+                                        }
+                                    )
+                                }
+                                else {
+                                    console.log(err1);
+                                }
+                            }
+                        )
+                    }
+                    else { //specific items only
+                        //STOCK = SUM(deposited) - SUM(withdrawn)
+                        mysql.use(db)
+                        .query(
+                            'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                            [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                            function(err1, res1) {
+                                if (!err1) {
+                                    deposited = res1;
+                                    mysql.use(db)
+                                    .query(
+                                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?)  AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
+                                        [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                        function(err2, res2) {
+                                            if (!err2) {
+                                                withdrawn = res2;
+                                                for (var i=0;i<deposited.length;i++) {
+                                                    for (var j=0;j<withdrawn.length;j++) {
+                                                        if (deposited[i].item_id == withdrawn[j].item_id) {
+                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                send_callback(err2, deposited)
+                                            }
+                                            else {
+                                                console.log(err2);
+                                            }
+                                        }
+                                    )
+                                }
+                                else {
+                                    console.log(err1);
+                                }
+                            }
+                        )
+                    }
+                }
+
+                function send_response(err, result) {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        //merge latest balance and latest item movements
+                        for (var i=0;i<response.length;i++) {
+                            for (var j=0;j<latest_balance.length;j++) {
+                                if (response[i].location_id === latest_balance[j].location_id) { //match same locations from movements and latest balance
+                                    response[i].items = response[i].items.concat(latest_balance[j].items);
+                                    response[i].items.sort(function(a, b) { //sort alphabetically by item name before matching
+                                        var textA = a.item_name.toUpperCase();
+                                        var textB = b.item_name.toUpperCase();
+                                        return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+
+                        for (var x=0;x<response.length;x++) { // for every location
+                            if (response[x].items.length !== 0) {
+                                var matched_items = [];
+                                var items = response[x].items;
+                                for (var i=0;i<items.length;i++) {
+                                    for (var j=i+1;j<items.length;j++) { //add the quantity of matched items then add to the list
+                                        if ((params.is_grouped == 1 && (items[i].item_id == items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && items[i].expiration_date.toString() == items[j].expiration_date.toString())) { //if is_grouped, no need to match with expiration dates
+                                            items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
+                                            matched_items.push(items[i]);
+                                            break;
+                                        } 
+                                    }
+                                }
+                                var final_items = matched_items;
+
+                                for (var i=0;i<items.length;i++) {
+                                    var has_match = 0;
+                                    for (var j=0;j<matched_items.length;j++) { //add the items that did not match to the list as is
+                                        if ((params.is_grouped == 1 && (items[i].item_id == matched_items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == matched_items[j].item_id) && items[i].expiration_date.toString() == matched_items[j].expiration_date.toString())) { //if is_grouped, no need to match with expiration dates
+                                            has_match = 1;
+                                            break;
+                                        } 
+                                    }
+                                    if (has_match == 0) {
+                                        final_items.push(items[i])
+                                    }
+                                }
+                                final_items.sort(function(a, b) { //sort alphabetically by item name again after different manipulations
+                                    var textA = a.item_name.toUpperCase();
+                                    var textB = b.item_name.toUpperCase();
+                                    return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;
+                                });
+
+                                var total_items = final_items.length;
+
+                                if (params.page !== -1) {
+                                    final_items = paginate(final_items, params.limit, params.page);
+                                }
+                                response[x].total = total_items;
+                                response[x].items = final_items;
+                            }
+                        }
+                        resolve(response);
+                    }
+                }
+
+                function format_date(date) {
+                    if (date != null) {
+                        var dates = new Date(date);
+                        var year = dates.getFullYear();
+                        var month = dates.getMonth()+1;
+                        var dt = dates.getDate();
+            
+                        if (dt < 10) {
+                            dt = '0' + dt;
+                        }
+                        if (month < 10) {
+                            month = '0' + month;
+                        }
+            
+                        var hrs = dates.getHours();
+                        var mins = dates.getMinutes();
+                        var secs = dates.getSeconds();
+            
+                        if (hrs < 10) {
+                            hrs = '0' + hrs;
+                        }
+                        if (mins < 10) {
+                            mins = '0' + mins;
+                        }
+                        if (secs < 10) {
+                            secs = '0' + secs;
+                        }
+            
+                        var date_formatted = year + '-' + month + '-' + dt + " " + hrs + ":" + mins + ":" + secs;
+            
+                        return date_formatted;
+                    }
+                    else {
+                        return null;
+                    }
+                }
+
+                function paginate (array, page_size, page_number) {
+                    --page_number; // because pages logically start with 1, but technically with 0
+                    return array.slice(page_number * page_size, (page_number + 1) * page_size);
+                }
+            }
+
+            function go_jeeves() {
+                var user_ids = [];
+                
+                mysql.use(db)
+                    .query(
+                        `SELECT id FROM users 
+                            WHERE franchise_id = ? AND franchisee_id = ? 
+                            AND deleted IS NULL`,
                             function(err, res) {
                                 if (err) {
                                     console.log(err);
                                     reject(err);
                                 }
                                 else {
-                                    async.each(res, fetch_items_breakdown, send_response); //get items for each location
+                                    user_ids = res;
+                                    console.log(user_ids);
+                                    /*var jeeves_response = {};
+                                    if (params.is_breakdown == 1) { //default for specific locations
+                                        mysql.use(db)
+                                        .query(
+                                            `SELECT mv.id, mv.item_id, m.code AS item_code,
+                                                mv.name AS item_name, SUM(mv.quantity) AS quantity,
+                                                mv.expiration_date, 
+                                                mv.location_id, l.name AS location_name, mv.quantity
+                                                FROM im_item_movement mv, material m, location l
+                                                WHERE mv.user_id IN (?) AND mv.type = "DEPOSIT"
+                                                AND mv.item_id = m.id
+                                                AND mv.location_id = l.id
+                                                GROUP BY mv.item_id, mv.expiration_date
+                                                ORDER BY m.name`,
+                                                [user_ids]
+                                        )
+                                    }*/
                                 }
                             }
-                        )
-                    }
-                }
-                else { //location has been set to 'all'
-                    if (params.user_id === -1) {
-                        ownership = "";
-                    }
-                    else {
-                        ownership = "u." + user_config.user_id + " = " + params.user_id + " AND";
-                    }
+                    )
+
+                /*if (params.is_breakdown == 1) { //default for specific locations
+                    mysql.use(db)
+                    .query(
+                        `SELECT mv.id, mv.item_id, m.code AS item_code,
+                            mv.name AS item_name, SUM(mv.quantity) AS quantity,
+                            mv.expiration_date, 
+                            mv.location_id, l.name AS location_name, mv.quantity
+                            FROM im_item_movement mv, material m, location l
+                            WHERE mv.user_id IN (?) AND mv.type = "DEPOSIT"
+                            AND mv.item_id = m.id
+                            AND mv.location_id = l.id
+                            GROUP BY mv.item_id, mv.expiration_date
+                            ORDER BY m.name`,
+                            [user_ids]
+                    )
 
                     mysql.use(db)
                     .query(
-                        'SELECT u.' + user_config.user_id + ' AS user_id,  u.' + user_config.user_first_name + ' AS user_first_name, u.' + user_config.user_last_name + ' AS user_last_name FROM ' + user_config.user_table + ' u WHERE ' + ownership + ' u.deleted IS NULL',
-                        [],
-                        function(err, res) {
-                            if (err) {
-                                console.log(err);
-                                reject(err);
-                            }
-                            else {
-                                async.each(res, fetch_items_no_breakdown, send_response); //get items for each location
-                            }
-                        }
-                    )
-                }
-            }
-
-            function fetch_items_breakdown(row, callback) {
-                function send_callback(err, result) {
-                    if (err) {
-                        //winston.error('Error in retrieving current inventory', last_query);
-                        console.log(err);
-                        return callback(err);
-                    }
-                    row['items'] = result;
-                    response.push(row);
-                    return callback();
-                }
-                
-                var deposited = [];
-                var withdrawn = [];
-
-                if (params.is_grouped == 1) {
-                    var group_clause = "GROUP BY i." + item_config.item_id;
-                    var exp_clause = "";
-                }
-                else {
-                    var group_clause = "GROUP BY mv.item_id, mv.expiration_date";
-                    var exp_clause = ", mv.expiration_date";
-                }
-
-                if (params.user_id === -1) {
-                    ownership = "";
-                }
-                else {
-                    ownership = "AND mv.user_id = " + params.user_id;
-                }
-                
-                if (params.item_id.length === 0) { //all items
-                    //STOCK = SUM(deposited) - SUM(withdrawn)
-                    mysql.use(db)
-                    .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                        function(err1, res1) {
-                            if (!err1) {
-                                deposited = res1;
-                                mysql.use(db)
-                                .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? ' + ownership + '  AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                                    [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                                    function(err2, res2) {
-                                        if (!err2) {
-                                            withdrawn = res2;
-                                            if (params.is_grouped == 1) {
-                                                for (var i=0;i<deposited.length;i++) {
-                                                    for (var j=0;j<withdrawn.length;j++) {
-                                                        if (deposited[i].item_id == withdrawn[j].item_id) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
-                                                        }
-                                                    }
+                        `SELECT COUNT(*) AS total
+                            FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
+                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                            AND bhd.item_id = m.id
+                            AND bhd.location_id = l.id
+                            AND l.name LIKE ? AND m.name LIKE ?`,
+                            [params.balance_id, "%"+params.search_location+"%", "%"+params.search_item+"%"],
+                            function(err, res) {
+                                if (err) {
+                                    console.log(err);
+                                    reject(err);
+                                }
+                                else {
+                                    jeeves_response.total = res[0].total;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bhd.id, bhd.location_id AS location_id, l.name AS location_name, 
+                                            bhd.item_id, m.code AS item_code, m.name AS item_name,
+                                            bhd.expiration_date, bhd.quantity 
+                                            FROM im_balance_history bh, im_balance_history_details bhd, im_location l, material m
+                                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                                            AND bhd.item_id = m.id
+                                            AND bhd.location_id = l.id
+                                            AND l.name LIKE ? AND m.name LIKE ?
+                                            ORDER BY l.name 
+                                            ` + pagination,
+                                            [params.balance_id, "%"+params.search_location+"%", "%"+params.search_item+"%"],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    console.log(err1);
+                                                    reject(err1);
+                                                }
+                                                else {
+                                                    jeeves_response.items = res1;
+                                                    resolve(jeeves_response);
                                                 }
                                             }
-                                            else {
-                                                for (var i=0;i<deposited.length;i++) {
-                                                    for (var j=0;j<withdrawn.length;j++) {
-                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date.toString() == withdrawn[j].expiration_date.toString())) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            send_callback(err2, deposited)
-                                        }
-                                        else {
-                                            console.log(err2);
-                                        }
-                                    }
-                                )
-                            }
-                            else {
-                                console.log(err1);
-                            }
-                        }
-                    )
-                }
-                else { //specific items
-                    //STOCK = SUM(deposited) - SUM(withdrawn)
-                    mysql.use(db)
-                    .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                        function(err1, res1) {
-                            if (!err1) {
-                                deposited = res1;
-                                mysql.use(db)
-                                .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                                    [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                                    function(err2, res2) {
-                                        if (!err2) {
-                                            withdrawn = res2;
-                                            if (params.is_grouped == 1) {
-                                                for (var i=0;i<deposited.length;i++) {
-                                                    for (var j=0;j<withdrawn.length;j++) {
-                                                        if (deposited[i].item_id == withdrawn[j].item_id) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                for (var i=0;i<deposited.length;i++) {
-                                                    for (var j=0;j<withdrawn.length;j++) {
-                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date.toString() == withdrawn[j].expiration_date.toString())) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            send_callback(err2, deposited)
-                                        }
-                                        else {
-                                            console.log(err2);
-                                        }
-                                    }
-                                )
-                            }
-                            else {
-                                console.log(err1);
-                            }
-                        }
-                    )
-                }
-            }
-
-            function fetch_items_no_breakdown(row, callback) {
-                function send_callback(err, result, args, last_query) {
-                    if (err) {
-                        winston.error('Error in retrieving current inventory', last_query);
-                        return callback(err);
-                    }
-                    row['items'] = result;
-                    response.push(row);
-                    return callback();
-                }
-                
-                var deposited = [];
-                var withdrawn = [];
-
-                if (params.user_id === -1) {
-                    ownership = "";
-                }
-                else {
-                    ownership = "AND mv.user_id = " + params.user_id;
-                }
-
-                if (params.item_id.length === 0) { //all items
-                    //STOCK = SUM(deposited) - SUM(withdrawn)
-                    mysql.use(db)
-                    .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' ' + ownership + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                        function(err1, res1) {
-                            if (!err1) {
-                                deposited = res1;
-                                mysql.use(db)
-                                .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' ' + ownership + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
-                                    ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                                    function(err2, res2) {
-                                        if (!err2) {
-                                            withdrawn = res2;
-                                            for (var i=0;i<deposited.length;i++) {
-                                                for (var j=0;j<withdrawn.length;j++) {
-                                                    if (deposited[i].item_id == withdrawn[j].item_id) {
-                                                        deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            send_callback(err2, deposited)
-                                        }
-                                        else {
-                                            console.log(err2);
-                                        }
-                                    }
-                                )
-                            }
-                            else {
-                                console.log(err1);
-                            }
-                        }
-                    )
-                }
-                else { //specific items only
-                    //STOCK = SUM(deposited) - SUM(withdrawn)
-                    mysql.use(db)
-                    .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                        function(err1, res1) {
-                            if (!err1) {
-                                deposited = res1;
-                                mysql.use(db)
-                                .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) ' + ownership + ' AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?)  AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
-                                    [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
-                                    function(err2, res2) {
-                                        if (!err2) {
-                                            withdrawn = res2;
-                                            for (var i=0;i<deposited.length;i++) {
-                                                for (var j=0;j<withdrawn.length;j++) {
-                                                    if (deposited[i].item_id == withdrawn[j].item_id) {
-                                                        deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            send_callback(err2, deposited)
-                                        }
-                                        else {
-                                            console.log(err2);
-                                        }
-                                    }
-                                )
-                            }
-                            else {
-                                console.log(err1);
-                            }
-                        }
-                    )
-                }
-            }
-
-            function send_response(err, result) {
-                if (err) {
-                    reject(err);
-                }
-                else {
-                    //merge latest balance and latest item movements
-                    for (var i=0;i<response.length;i++) {
-                        for (var j=0;j<latest_balance.length;j++) {
-                            if (response[i].location_id === latest_balance[j].location_id) { //match same locations from movements and latest balance
-                                response[i].items = response[i].items.concat(latest_balance[j].items);
-                                response[i].items.sort(function(a, b) { //sort alphabetically by item name before matching
-                                    var textA = a.item_name.toUpperCase();
-                                    var textB = b.item_name.toUpperCase();
-                                    return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;
-                                });
-                                break;
-                            }
-                        }
-                    }
-
-                    for (var x=0;x<response.length;x++) { // for every location
-                        if (response[x].items.length !== 0) {
-                            var matched_items = [];
-                            var items = response[x].items;
-                            for (var i=0;i<items.length;i++) {
-                                for (var j=i+1;j<items.length;j++) { //add the quantity of matched items then add to the list
-                                    if ((params.is_grouped == 1 && (items[i].item_id == items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && items[i].expiration_date.toString() == items[j].expiration_date.toString())) { //if is_grouped, no need to match with expiration dates
-                                        items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
-                                        matched_items.push(items[i]);
-                                        break;
-                                    } 
+                                    )
                                 }
                             }
-                            var final_items = matched_items;
-
-                            for (var i=0;i<items.length;i++) {
-                                var has_match = 0;
-                                for (var j=0;j<matched_items.length;j++) { //add the items that did not match to the list as is
-                                    if ((params.is_grouped == 1 && (items[i].item_id == matched_items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == matched_items[j].item_id) && items[i].expiration_date.toString() == matched_items[j].expiration_date.toString())) { //if is_grouped, no need to match with expiration dates
-                                        has_match = 1;
-                                        break;
-                                    } 
-                                }
-                                if (has_match == 0) {
-                                    final_items.push(items[i])
-                                }
-                            }
-                            final_items.sort(function(a, b) { //sort alphabetically by item name again after different manipulations
-                                var textA = a.item_name.toUpperCase();
-                                var textB = b.item_name.toUpperCase();
-                                return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;
-                            });
-
-                            var total_items = final_items.length;
-
-                            if (params.page !== -1) {
-                                final_items = paginate(final_items, params.limit, params.page);
-                            }
-                            response[x].total = total_items;
-                            response[x].items = final_items;
-                        }
-                    }
-                    resolve(response);
-                }
-            }
-
-            function format_date(date) {
-                if (date != null) {
-                    var dates = new Date(date);
-                    var year = dates.getFullYear();
-                    var month = dates.getMonth()+1;
-                    var dt = dates.getDate();
-        
-                    if (dt < 10) {
-                        dt = '0' + dt;
-                    }
-                    if (month < 10) {
-                        month = '0' + month;
-                    }
-        
-                    var hrs = dates.getHours();
-                    var mins = dates.getMinutes();
-                    var secs = dates.getSeconds();
-        
-                    if (hrs < 10) {
-                        hrs = '0' + hrs;
-                    }
-                    if (mins < 10) {
-                        mins = '0' + mins;
-                    }
-                    if (secs < 10) {
-                        secs = '0' + secs;
-                    }
-        
-                    var date_formatted = year + '-' + month + '-' + dt + " " + hrs + ":" + mins + ":" + secs;
-        
-                    return date_formatted;
+                    )
                 }
                 else {
-                    return null;
-                }
+                    mysql.use(db)
+                    .query(
+                        `SELECT COUNT(*) AS total, SUM(bhd.quantity) AS quantity
+                            FROM im_balance_history bh, im_balance_history_details bhd, material m
+                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                            AND bhd.item_id = m.id
+                            AND m.name LIKE ?
+                            GROUP BY bhd.item_id`,
+                            [params.balance_id, "%"+params.search_item+"%"],
+                            function(err, res) {
+                                if (err) {
+                                    console.log(err);
+                                    reject(err);
+                                }
+                                else {
+                                    jeeves_response.total = res.length;
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT bhd.id, bhd.item_id, m.code AS item_code, m.name AS item_name,
+                                            bhd.expiration_date, SUM(bhd.quantity) AS quantity
+                                            FROM im_balance_history bh, im_balance_history_details bhd, material m
+                                            WHERE bh.id = bhd.balance_id AND bh.id = ?
+                                            AND bhd.item_id = m.id
+                                            AND m.name LIKE ?
+                                            GROUP BY bhd.item_id
+                                            ORDER BY m.name
+                                            ` + pagination,
+                                            [params.balance_id, "%"+params.search_item+"%"],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    console.log(err1);
+                                                    reject(err1);
+                                                }
+                                                else {
+                                                    jeeves_response.items = res1;
+                                                    resolve(jeeves_response);
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                    )
+                }*/
             }
-
-            function paginate (array, page_size, page_number) {
-                --page_number; // because pages logically start with 1, but technically with 0
-                return array.slice(page_number * page_size, (page_number + 1) * page_size);
-              }
         })
     }
 
