@@ -552,7 +552,9 @@ module.exports = function(db_name) {
                                 reject(err);
                             }
                             else {
-                                user_ids = res;
+                                for (var i=0;i<res.length;i++) {
+                                    user_ids.push(res[i].id);
+                                }
                                 var jeeves_response = {};
                                 if (params.is_breakdown == 1) { //default for specific locations
                                     mysql.use(db)
