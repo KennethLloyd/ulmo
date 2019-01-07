@@ -1759,7 +1759,7 @@ module.exports = function(db_name) {
             function start(){                
                 mysql.use(db)
                 .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
+                    'SELECT id,code FROM im_location WHERE code = ? AND deleted IS NULL',
                     [datum.code, datum.user_id],
                     send_response
                 ).end()                
@@ -1777,8 +1777,8 @@ module.exports = function(db_name) {
                     
                     mysql.use(db)
                     .query(
-                        'INSERT INTO im_location (id, code, name, description, user_id, deleted) VALUES (?,?,?,?,?,?)',
-                        [datum.id,datum.code, datum.name, datum.description, datum.user_id,deleted],
+                        'INSERT INTO im_location (id, code, name, description, deleted) VALUES (?,?,?,?,?,?)',
+                        [datum.id,datum.code, datum.name, datum.description, deleted],
                         function(error, result) {
                             if (error) {
                                 reject(error);
@@ -1791,7 +1791,6 @@ module.exports = function(db_name) {
                                     code:        datum.code,
                                     name:        datum.name,
                                     description: datum.description,
-                                    user_id:     datum.user_id,
                                     status:      datum.status            
                                 };
                                     
@@ -2008,8 +2007,8 @@ module.exports = function(db_name) {
             let datum = data[0];
             mysql.use(db)
             .query(
-                'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                [datum.user_id, datum.id],
+                'SELECT * FROM im_location WHERE id=?',
+                datum.id,
                 function(err, result) {
                     if (err) {
                         reject(err);
@@ -2030,8 +2029,8 @@ module.exports = function(db_name) {
 
                                         mysql.use(db)
                                         .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
+                                            'SELECT * FROM im_location WHERE id=?',
+                                            datum.id,
                                             function(err, result) {
                                                 if (err) {
                                                     reject(err);
@@ -2043,8 +2042,7 @@ module.exports = function(db_name) {
                                                         description : result[0].description,
                                                         created     : result[0].created,
                                                         updated     : result[0].updated,
-                                                        deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
+                                                        deleted     : result[0].deleted,                                                        
                                                         status      : false,
                                                         message     : "Successfully deactivated location"
                                                     };
@@ -2071,8 +2069,8 @@ module.exports = function(db_name) {
 
                                         mysql.use(db)
                                         .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
+                                            'SELECT * FROM im_location WHERE id=?',
+                                            datum.id,
                                             function(err, result) {
                                                 if (err) {
                                                     reject(err);
@@ -2085,7 +2083,6 @@ module.exports = function(db_name) {
                                                         created     : result[0].created,
                                                         updated     : result[0].updated,
                                                         deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
                                                         status      : true,
                                                         message     : "Successfully activated location"
                                                     };
@@ -2122,8 +2119,8 @@ module.exports = function(db_name) {
             function start(){                
                 mysql.use(db)
                 .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
-                    [datum.code, datum.user_id],
+                    'SELECT id,code FROM im_location WHERE code = ? AND deleted IS NULL',
+                    [datum.code],
                     send_response
                 ).end()                
             }
@@ -2144,8 +2141,8 @@ module.exports = function(db_name) {
                     if(result[0].id == datum.id){
                         mysql.use(db)
                         .query(
-                            'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                            [datum, datum.id, datum.user_id],
+                            'UPDATE im_location SET ? WHERE id = ?',
+                            datum, datum.id,
                             function(error, result) {
                                 if (error) {
                                     reject(error);
@@ -2155,8 +2152,7 @@ module.exports = function(db_name) {
                                         id:          datum.id,
                                         code:        datum.code,
                                         name:        datum.name,
-                                        description: datum.description,
-                                        user_id:     datum.user_id          
+                                        description: datum.description     
                                     };
                                         
                                     resolve([location])
@@ -2174,8 +2170,8 @@ module.exports = function(db_name) {
                     
                     mysql.use(db)
                     .query(
-                        'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                        [datum, datum.id, datum.user_id],
+                        'UPDATE im_location SET ? WHERE id = ?',
+                        [datum, datum.id],
                         function(error, result) {
                             if (error) {
                                 reject(error);
@@ -2186,8 +2182,7 @@ module.exports = function(db_name) {
                                     id:          datum.id,
                                     code:        datum.code,
                                     name:        datum.name,
-                                    description: datum.description,
-                                    user_id:     datum.user_id          
+                                    description: datum.description     
                                 };
                                     
                                 resolve(location)
