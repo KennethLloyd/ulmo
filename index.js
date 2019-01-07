@@ -539,6 +539,8 @@ module.exports = function(db_name) {
 
             function go_jeeves() {
                 var user_ids = [];
+                var deposited = [];
+                var withdrawn = [];
                 
                 mysql.use(db)
                 .query(
@@ -557,7 +559,7 @@ module.exports = function(db_name) {
                                 }
                                 var jeeves_response = {};
                                 if (params.is_breakdown == 1) { //default for specific locations
-                                    mysql.use(db)
+                                    mysql.use(db) //get all deposited items
                                     .query(
                                         `SELECT mv.id, mv.item_id, m.code AS item_code,
                                             m.name AS item_name, SUM(mv.quantity) AS quantity,
@@ -576,7 +578,39 @@ module.exports = function(db_name) {
                                                     reject(err1);
                                                 }
                                                 else {
-                                                    resolve(res1);
+                                                    deposited = res1;
+                                                    mysql.use(db) //get all deposited items
+                                                    .query(
+                                                        `SELECT mv.id, mv.item_id, m.code AS item_code,
+                                                            m.name AS item_name, SUM(mv.quantity) AS quantity,
+                                                            mv.expiration_date, 
+                                                            mv.location_id, l.name AS location_name, mv.quantity
+                                                            FROM im_item_movement mv, material m, im_location l
+                                                            WHERE mv.user_id IN (?) AND mv.type = "WITHDRAW"
+                                                            AND mv.item_id = m.id
+                                                            AND mv.location_id = l.id
+                                                            GROUP BY mv.item_id, mv.expiration_date
+                                                            ORDER BY m.name`,
+                                                            [user_ids],
+                                                            function(err2, res2) {
+                                                                if (err2) {
+                                                                    console.log(err2);
+                                                                    reject(err2);
+                                                                }
+                                                                else {
+                                                                    withdrawn = res2;
+                                                                    for (var i=0;i<deposited.length;i++) {
+                                                                        for (var j=0;j<withdrawn.length;j++) {
+                                                                            if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].location_id == withdrawn[j].location_id) && (deposited[i].expiration_date.toString() == withdrawn[j].expiration_date.toString())) {
+                                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                                break;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    resolve(deposited);
+                                                                }
+                                                            }
+                                                    )
                                                 }
                                             }
                                     )
