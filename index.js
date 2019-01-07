@@ -1654,7 +1654,8 @@ module.exports = function(db_name) {
                         }
 
                         if(result.length==0){
-                            resolve({total:0, transactions:[]})
+                            //resolve({total:0, transactions:[]})
+                            resolve([{total: 0},[]]);
                         }else{         
                             for(let i=0; i<result.length; i++){
                                 let transaction = {
