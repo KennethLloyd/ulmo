@@ -558,7 +558,7 @@ module.exports = function(db_name) {
                                     mysql.use(db)
                                     .query(
                                         `SELECT mv.id, mv.item_id, m.code AS item_code,
-                                            mv.name AS item_name, SUM(mv.quantity) AS quantity,
+                                            m.name AS item_name, SUM(mv.quantity) AS quantity,
                                             mv.expiration_date, 
                                             mv.location_id, l.name AS location_name, mv.quantity
                                             FROM im_item_movement mv, material m, im_location l
