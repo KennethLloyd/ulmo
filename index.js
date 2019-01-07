@@ -1935,8 +1935,8 @@ module.exports = function(db_name) {
             let datum = data[0];
             mysql.use(db)
             .query(
-                'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                [datum.user_id,datum.id],
+                'SELECT * FROM im_location WHERE id=?',
+                datum.id,
                 function(err, result) {
                     if (err) {
                         reject(err);
@@ -1956,7 +1956,6 @@ module.exports = function(db_name) {
                             created     : result[0].created,
                             updated     : result[0].updated,
                             deleted     : result[0].deleted,
-                            user_id     : result[0].user_id,
                             status      : status,
                             franchise_id: []
                         };
@@ -2119,8 +2118,8 @@ module.exports = function(db_name) {
             function start(){                
                 mysql.use(db)
                 .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND deleted IS NULL',
-                    [datum.code],
+                    'SELECT id, code FROM im_location WHERE code = ? AND deleted IS NULL',
+                    datum.code,
                     send_response
                 ).end()                
             }
@@ -2142,7 +2141,7 @@ module.exports = function(db_name) {
                         mysql.use(db)
                         .query(
                             'UPDATE im_location SET ? WHERE id = ?',
-                            datum, datum.id,
+                            [datum, datum.id],
                             function(error, result) {
                                 if (error) {
                                     reject(error);
@@ -2162,8 +2161,10 @@ module.exports = function(db_name) {
                             }
                         )
                         .end();
+                    
                     }else{
-                        reject({code: "NO_RECORD_UPDATED"})
+                        //reject({code: "NO_RECORD_UPDATED"})
+                        reject({code: "DUP_ENTRY"})
                     }
                         
                 }else{
@@ -2227,6 +2228,7 @@ module.exports = function(db_name) {
                                     }else{
                                         datum.items[i].id = uuid.v4();
                                         datum.items[i].user_id = datum.user_id;
+                                        datum.items[i].franchise_id = datum.franchise_id;
                                         datum.items[i].type = "DEPOSIT"
     
                                         if(datum.items[i].expiration_date == undefined){
@@ -2264,8 +2266,8 @@ module.exports = function(db_name) {
 
                     mysql.use(db)
                         .query(
-                            'INSERT INTO im_movement_transaction (id, user_id, type) VALUES (?,?,"DEPOSIT")',
-                            [transaction_id,datum.user_id],
+                            'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?,"DEPOSIT")',
+                            [transaction_id, datum.franchise_id, datum.user_id],
                             function(err,res){
                                 if (err) {
                                     reject(err);
@@ -2273,8 +2275,8 @@ module.exports = function(db_name) {
                                     for(let i=0; i<datum.items.length; i++){
                                         mysql.use(db)
                                         .query(
-                                            'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
-                                            [datum.items[i].id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
+                                            'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                            [datum.items[i].id, datum.items[i].franchise_id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
                                             function(err1, res1) {
                                                 if (err1) {
                                                     reject(err1);
@@ -2304,9 +2306,8 @@ module.exports = function(db_name) {
 
     module.withdraw = (data) => {
         return new Promise(function(resolve, reject) {
-
+            
             const datum = data[0];
-
             let noLocation = 0;
 
             function check_location(cb){
@@ -2324,7 +2325,8 @@ module.exports = function(db_name) {
                                         noLocation = 1;                                        
                                     }else{
                                         datum.items[i].id = uuid.v4();
-                                        datum.items[i].user_id = datum.user_id;
+                                        datum.items[i].user_id = datum.user_id;                                        
+                                        datum.items[i].franchise_id = datum.franchise_id;
                                         datum.items[i].type = "WITHDRAW"
     
                                         if(datum.items[i].expiration_date == undefined){
@@ -2364,9 +2366,9 @@ module.exports = function(db_name) {
                     let qry = '';
 
                         if(item.expiration_date){
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
                         }else{
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND user_id ='+mysql.escape(item.user_id)+' AND deleted IS NULL';
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND deleted IS NULL';
                         }
 
                     if(parseFloat(item.quantity) <= 0){
@@ -2469,8 +2471,8 @@ module.exports = function(db_name) {
 
                     mysql.use(db)
                         .query(
-                            'INSERT INTO im_movement_transaction (id, user_id, type) VALUES (?,?, "WITHDRAW")',
-                            [transaction_id,datum.user_id],
+                            'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?, "WITHDRAW")',
+                            [transaction_id,datum.franchise_id,datum.user_id],
                             function(err,res) {
                                 if (err) {
                                     reject(err);
@@ -2478,8 +2480,8 @@ module.exports = function(db_name) {
                                     for(let i=0; i<datum.items.length; i++) {
                                         mysql.use(db)
                                         .query(
-                                            'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
-                                            [datum.items[i].id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
+                                            'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                            [datum.items[i].id,datum.items[i].franchise_id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
                                             function(err1, res1) {
                                                 if (err1) {
                                                     reject(err1);
@@ -2533,6 +2535,7 @@ module.exports = function(db_name) {
                                             item_id         : datum.items[i].item_id,
                                             quantity        : datum.items[i].quantity,
                                             id              : uuid.v4(),
+                                            franchise_id    : datum.franchise_id,
                                             user_id         : datum.user_id,
                                             type            : "WITHDRAW",
                                             location_id     : datum.items[i].source
@@ -2722,6 +2725,7 @@ module.exports = function(db_name) {
                                                     item_id         : datum.items[i].item_id,
                                                     quantity        : datum.items[i].quantity,
                                                     id              : uuid.v4(),
+                                                    franchise_id    : datum.franchise_id,
                                                     user_id         : datum.user_id,
                                                     type            : "DEPOSIT",
                                                     location_id     : datum.items[i].destination
@@ -2771,8 +2775,8 @@ module.exports = function(db_name) {
         
                             mysql.use(db)
                                 .query(
-                                    'INSERT INTO im_movement_transaction (id, user_id, type) VALUES (?,?,"TRANSFER")',
-                                    [transaction_id,datum.user_id],
+                                    'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?,"TRANSFER")',
+                                    [transaction_id, datum.franchise_id, datum.user_id],
                                     function(err,res){
                                         if (err) {
                                             reject(err);
@@ -2780,8 +2784,8 @@ module.exports = function(db_name) {
                                             for(let i=0; i<verified.length; i++){
                                                 mysql.use(db)
                                                 .query(
-                                                    'INSERT INTO im_item_movement (id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?)',
-                                                    [verified[i].id, verified[i].item_id, verified[i].quantity, verified[i].location_id, verified[i].expiration_date, verified[i].remarks, verified[i].user_id, verified[i].type,transaction_id],
+                                                    'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                                    [verified[i].id, verified[i].franchise_id, verified[i].item_id, verified[i].quantity, verified[i].location_id, verified[i].expiration_date, verified[i].remarks, verified[i].user_id, verified[i].type,transaction_id],
                                                     function(err1, res1) {
                                                         if (err1) {
                                                             reject(err1);
