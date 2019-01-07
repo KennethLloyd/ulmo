@@ -1815,43 +1815,76 @@ module.exports = function(db_name) {
 
 
     module.retrieve_locations = (data) => {
-        return new Promise(function(resolve, reject) {     
-            
-                let datum = data[0];
-
+        return new Promise(function(resolve, reject) {   
+                let datum       = data[0];
+                let user_level  = data[0].user_level;
+                
                 let status  = '';
 
                 if(datum.filter_status == undefined || datum.filter_status == null){
                     status=' ';
                 }else if(datum.filter_status == true || datum.filter_status.toLowerCase() == "true"){
-                    status=' AND deleted IS NULL';
+                    status=' deleted IS NULL';
                 }else if(datum.filter_status == false || datum.filter_status.toLowerCase() == "false"){
-                    status=' AND deleted IS NOT NULL';
+                    status=' deleted IS NOT NULL';
                 }
 
                 let qry     = 'SELECT * ';
-                let count   = 'SELECT COUNT(id) '
-                let from    = ' FROM im_location ';
-                let where   = ' AND (code LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.description+'%")';                
+                let count   = 'SELECT COUNT(id)'
+                let from    = ' FROM im_location';                
+                let where   = ' WHERE (code LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.search+'%" OR description LIKE "%'+datum.description+'%")';                
                 let limit   = ' LIMIT '+datum.page+','+datum.limit;
 
+                let FOqry   = 'id IN ((SELECT location_id FROM im_location_franchise WHERE franchise_id ='+datum.franchise_id+' AND deleted IS NULL))'
 
                 if(!datum.search && !datum.filter_status){
-                    qry += ',('+count+from+') AS "total"';
-                    qry += from;
+                    if (user_level === "SUPER_ADMIN"){
+                        qry += ',('+count+from+') AS "total"';
+                        qry += from;
+                    }else if(user_level === "FRANCHISE_OWNER"){
+                        from+= ' WHERE '+FOqry;
+                        qry += ',('+count+from+') AS "total"';
+                        qry += from;
+                    }                   
                 }
 
-                if(!datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+') AS "total"';
-                    qry += from+status;
+                if(datum.search && !datum.filter_status){
+                    if (user_level === "SUPER_ADMIN"){
+                        qry += ',('+count+from+where+') AS "total"';
+                        qry += from+where;
+                    }else if(user_level === "FRANCHISE_OWNER"){
+                        where += ' AND '+FOqry;
+                        qry += ',('+count+from+where+') AS "total"';
+                        qry += from+where;
+                    }                    
+                }
+
+                if(!datum.search && datum.filter_status){                    
+                    if (user_level === "SUPER_ADMIN"){
+                        qry += ',('+count+from+" WHERE"+status+') AS "total"';
+                        qry += from+" WHERE"+status;
+                    }else if(user_level === "FRANCHISE_OWNER"){
+                        status += ' AND '+FOqry;
+                        qry += ',('+count+from+" WHERE"+status+') AS "total"';
+                        qry += from+" WHERE"+status;
+                    }
+                   
                 }
 
                 if(datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+where+') AS "total"';
-                    qry += from+status+where;
+                    if (user_level === "SUPER_ADMIN"){
+                        qry += ',('+count+from+where+" AND"+status+') AS "total"';
+                        qry += from+where+" AND"+status;
+                    }else if(user_level === "FRANCHISE_OWNER"){
+                        status += ' AND '+FOqry;
+                        qry += ',('+count+from+where+" AND"+status+') AS "total"';
+                        qry += from+where+" AND"+status;
+                    }
+                    
                 }
 
-                let finalqry = qry+limit;                
+                let finalqry = qry+limit;        
+                console.log(finalqry)
                 
                 mysql.use(db)
                 .query(
