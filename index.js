@@ -541,40 +541,47 @@ module.exports = function(db_name) {
                 var user_ids = [];
                 
                 mysql.use(db)
-                    .query(
-                        `SELECT id FROM users 
-                            WHERE franchise_id = ? AND franchisee_id = ? 
-                            AND deleted IS NULL`,
-                            [params.franchise_id, params.franchisee_id],
-                            function(err, res) {
-                                if (err) {
-                                    console.log(err);
-                                    reject(err);
-                                }
-                                else {
-                                    console.log(res);
-                                    user_ids = res;
-                                    console.log(user_ids);
-                                    /*var jeeves_response = {};
-                                    if (params.is_breakdown == 1) { //default for specific locations
-                                        mysql.use(db)
-                                        .query(
-                                            `SELECT mv.id, mv.item_id, m.code AS item_code,
-                                                mv.name AS item_name, SUM(mv.quantity) AS quantity,
-                                                mv.expiration_date, 
-                                                mv.location_id, l.name AS location_name, mv.quantity
-                                                FROM im_item_movement mv, material m, location l
-                                                WHERE mv.user_id IN (?) AND mv.type = "DEPOSIT"
-                                                AND mv.item_id = m.id
-                                                AND mv.location_id = l.id
-                                                GROUP BY mv.item_id, mv.expiration_date
-                                                ORDER BY m.name`,
-                                                [user_ids]
-                                        )
-                                    }*/
+                .query(
+                    `SELECT id FROM users 
+                        WHERE franchise_id = ? AND franchisee_id = ? 
+                        AND deleted IS NULL`,
+                        [params.franchise_id, params.franchisee_id],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else {
+                                user_ids = res;
+                                var jeeves_response = {};
+                                if (params.is_breakdown == 1) { //default for specific locations
+                                    mysql.use(db)
+                                    .query(
+                                        `SELECT mv.id, mv.item_id, m.code AS item_code,
+                                            mv.name AS item_name, SUM(mv.quantity) AS quantity,
+                                            mv.expiration_date, 
+                                            mv.location_id, l.name AS location_name, mv.quantity
+                                            FROM im_item_movement mv, material m, location l
+                                            WHERE mv.user_id IN (?) AND mv.type = "DEPOSIT"
+                                            AND mv.item_id = m.id
+                                            AND mv.location_id = l.id
+                                            GROUP BY mv.item_id, mv.expiration_date
+                                            ORDER BY m.name`,
+                                            [user_ids],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    console.log(err1);
+                                                    reject(err1);
+                                                }
+                                                else {
+                                                    resolve(res1);
+                                                }
+                                            }
+                                    )
                                 }
                             }
-                    )
+                        }
+                )
 
                 /*if (params.is_breakdown == 1) { //default for specific locations
                     mysql.use(db)
