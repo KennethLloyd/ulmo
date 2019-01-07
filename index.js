@@ -1831,7 +1831,7 @@ module.exports = function(db_name) {
 
                 let qry     = 'SELECT * ';
                 let count   = 'SELECT COUNT(id) '
-                let from    = ' FROM im_location WHERE user_id ='+datum.user_id;
+                let from    = ' FROM im_location ';
                 let where   = ' AND (code LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.description+'%")';                
                 let limit   = ' LIMIT '+datum.page+','+datum.limit;
 

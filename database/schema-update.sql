@@ -22,3 +22,6 @@ CREATE TABLE `im_movement_transaction` (
 	`type` VARCHAR(20) NULL DEFAULT NULL,
 	PRIMARY KEY (`id`)
 );
+
+/*2019-01-07*/
+ALTER TABLE im_location DROP COLUMN user_id;
