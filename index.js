@@ -545,12 +545,14 @@ module.exports = function(db_name) {
                         `SELECT id FROM users 
                             WHERE franchise_id = ? AND franchisee_id = ? 
                             AND deleted IS NULL`,
+                            [params.franchise_id, params.franchisee_id],
                             function(err, res) {
                                 if (err) {
                                     console.log(err);
                                     reject(err);
                                 }
                                 else {
+                                    console.log(res);
                                     user_ids = res;
                                     console.log(user_ids);
                                     /*var jeeves_response = {};
