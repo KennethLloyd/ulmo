@@ -1594,9 +1594,9 @@ module.exports = function(db_name) {
 
             function getHeaders(cb){
 
-                let qry         = 'SELECT id, created, user_id, type';
+                let qry         = 'SELECT id, created, type';
                 let count       = 'SELECT count(id)';
-                let from        = ' FROM im_movement_transaction WHERE user_id IN ('+mysql.escape(datum.user_id)+') ';
+                let from        = ' FROM im_movement_transaction WHERE deleted IS NULL AND franchise_id ='+mysql.escape(datum.franchise_id);
                 let transaction_id = ' AND transaction_id LIKE '+mysql.escape('%'+datum.type+'%');
                 let type        = ' AND type = '+mysql.escape(datum.type);
                 let daterange   = ' AND (created BETWEEN '+mysql.escape(datum.from)+' AND DATE_ADD('+mysql.escape(datum.to)+',INTERVAL 1 DAY))';
@@ -1660,7 +1660,6 @@ module.exports = function(db_name) {
                                 let transaction = {
                                     id      : result[i].id,
                                     created : result[i].created,
-                                    user_id : result[i].user_id,
                                     type    : result[i].type                                    
                                 }
                                 transactions.push(transaction)
@@ -1700,7 +1699,8 @@ module.exports = function(db_name) {
                                     location_id     : result[a].location_id,
                                     expiration_date : result[a].expiration_date,
                                     remarks         : result[a].remarks,
-                                    type            : result[a].type,                                    
+                                    type            : result[a].type,       
+                                    franchise_id    : result[a].franchise_id,                             
                                     user_id         : result[a].user_id,
                                     created         : result[a].created,
                                     updated         : result[a].updated,
@@ -1777,7 +1777,7 @@ module.exports = function(db_name) {
                     
                     mysql.use(db)
                     .query(
-                        'INSERT INTO im_location (id, code, name, description, deleted) VALUES (?,?,?,?,?,?)',
+                        'INSERT INTO im_location (id, code, name, description, deleted) VALUES (?,?,?,?,?)',
                         [datum.id,datum.code, datum.name, datum.description, deleted],
                         function(error, result) {
                             if (error) {

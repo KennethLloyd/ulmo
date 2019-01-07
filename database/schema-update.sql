@@ -25,3 +25,5 @@ CREATE TABLE `im_movement_transaction` (
 
 /*2019-01-07*/
 ALTER TABLE im_location DROP COLUMN user_id;
+ALTER TABLE im_item_movement ADD COLUMN franchise_id int(11) not null AFTER id;
+ALTER TABLE im_movement_transaction ADD COLUMN franchise_id int(11) not null AFTER id;
