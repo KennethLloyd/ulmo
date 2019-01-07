@@ -561,7 +561,7 @@ module.exports = function(db_name) {
                                             mv.name AS item_name, SUM(mv.quantity) AS quantity,
                                             mv.expiration_date, 
                                             mv.location_id, l.name AS location_name, mv.quantity
-                                            FROM im_item_movement mv, material m, location l
+                                            FROM im_item_movement mv, material m, im_location l
                                             WHERE mv.user_id IN (?) AND mv.type = "DEPOSIT"
                                             AND mv.item_id = m.id
                                             AND mv.location_id = l.id
