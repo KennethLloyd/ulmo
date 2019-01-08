@@ -1829,6 +1829,32 @@ module.exports = function(db_name) {
                     status=' deleted IS NOT NULL';
                 }
 
+                let orderby = '';
+
+                if(datum.sort_id && datum.sort_desc){
+                    if(datum.sort_desc.toLowerCase() === "true" || datum.sort_desc == true){
+                        
+                        switch(datum.sort_id.toLowerCase()) {
+                            case "id"           :  orderby = " ORDER BY id desc"; break;                              
+                            case "code"         :  orderby = " ORDER BY code desc"; break;
+                            case "name"         :  orderby = " ORDER BY name desc"; break;
+                            case "description"  :  orderby = " ORDER BY description desc"; break;  
+                            case "created"      :  orderby = " ORDER BY created desc"; break;
+                        }
+                                                
+                    }else if(datum.sort_desc.toLowerCase() === "false" || datum.sort_desc == false){
+
+                        switch(datum.sort_id.toLowerCase()) {
+                            case "id"           :  orderby = " ORDER BY id asc "; break;                              
+                            case "code"         :  orderby = " ORDER BY code asc "; break;
+                            case "name"         :  orderby = " ORDER BY name asc "; break;
+                            case "description"  :  orderby = " ORDER BY description asc "; break;  
+                            case "created"      :  orderby = " ORDER BY created asc "; break;
+                        }
+
+                    }
+                }
+            
                 let qry     = 'SELECT * ';
                 let count   = 'SELECT COUNT(id)'
                 let from    = ' FROM im_location';                
@@ -1883,9 +1909,14 @@ module.exports = function(db_name) {
                     
                 }
 
-                let finalqry = qry+limit;        
-                console.log(finalqry)
-                
+                let finalqry = '';    
+
+                if(orderby.length==0){
+                    finalqry = qry+limit;
+                }else{
+                    finalqry = qry+orderby+limit;
+                }            
+
                 mysql.use(db)
                 .query(
                     finalqry,
