@@ -1463,7 +1463,7 @@ module.exports = function(db_name) {
                     reject(err);
                 }
                 else {
-                    location.message = "Successfully updated location";
+                    location.message = "Successfully updated location status";
                     location.items = params;
                     resolve(location);
                 }
@@ -1474,90 +1474,49 @@ module.exports = function(db_name) {
 
 
 
-    module.update_location = (data) => {
+    module.update_location = (params) => {
         return new Promise(function(resolve, reject) {
             
-            let datum = data[0];
+            let location = {};
 
-            function start(){                
-                mysql.use(db)
-                .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
-                    [datum.code, datum.user_id],
-                    send_response
-                ).end()                
-            }
+            mysql.use(db)
+            .query(
+                `SELECT * FROM im_location 
+                    WHERE id = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                    [params.id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else if (!res.length) {
+                            console.log("Location not found")
+                            reject(new Error("Location not found"));
+                        }
+                        else {
+                            mysql.use(db)
+                            .query(
+                                `UPDATE im_location SET ?
+                                    WHERE id = ? and user_id = ?`,
+                                    [params, params.id, params.user_id],
+                                    send_response
+                            )
+                        }
+                    }
+            )
 
-            function send_response(err, result, args, last_query){
+            function send_response(err, res) {
                 if (err) {
+                    console.log(err);
                     reject(err);
                 }
-
-                if (result.length > 1) {             
-                    reject({code: "DUP_ENTRY"})
-                }else if (result.length == 1){
-    
-                    if(result[0].id == datum.id){
-                        mysql.use(db)
-                        .query(
-                            'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                            [datum, datum.id, datum.user_id],
-                            function(error, result) {
-                                if (error) {
-                                    reject(error);
-                                }else{                                    
-                                    let location = {
-                                        message:    'Successfully updated location',
-                                        id:          datum.id,
-                                        code:        datum.code,
-                                        name:        datum.name,
-                                        description: datum.description,
-                                        user_id:     datum.user_id          
-                                    };
-                                        
-                                    resolve(location)
-                                    
-                                }
-                                                    
-                            }
-                        )
-                        .end();
-                    }else{
-                        reject({code: "NO_RECORD_UPDATED"})
-                    }
-                        
-                }else{
-                    
-                    mysql.use(db)
-                    .query(
-                        'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                        [datum, datum.id, datum.user_id],
-                        function(error, result) {
-                            if (error) {
-                                reject(error);
-                            }else{
-                                
-                                let location = {
-                                    message:    'Successfully updated location',
-                                    id:          datum.id,
-                                    code:        datum.code,
-                                    name:        datum.name,
-                                    description: datum.description,
-                                    user_id:     datum.user_id          
-                                };
-                                    
-                                resolve(location)
-                                
-                            }
-                                                
-                        }
-                    )
-                    .end();
-
+                else {
+                    location.message = "Successfully updated location";
+                    location.items = params;
+                    resolve(location);
                 }
             }
-
-            start();
 
         })
     }
