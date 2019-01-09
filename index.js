@@ -1281,64 +1281,50 @@ module.exports = function(db_name) {
                 `SELECT * FROM im_location 
                     WHERE code = ? AND user_id = ? 
                     AND deleted IS NULL`,
-                [params.code, params.user_id],
-                send_response
-            ).end()              
+                    [params.code, params.user_id],
+                    function(err, result) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+        
+                        if (result.length) {
+                            console.log("Location already exists");             
+                            reject(err);
+                                
+                        }
+                        else {
+                            if (params.status == false || params.status.toLowerCase() == "false") { //create a deactivated location
+                                mysql.use(db)
+                                .query(
+                                    `INSERT INTO im_location (id, code, name, description, user_id, deleted) 
+                                        VALUES (?, ?, ?, ?, ?, now())`,
+                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                        send_response
+                                )
+                            }
+                            else { //create an activated location
+                                mysql.use(db)
+                                .query(
+                                    `INSERT INTO im_location (id, code, name, description, user_id) 
+                                        VALUES (?, ?, ?, ?, ?)`,
+                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
+                    }
+                )            
 
-            function send_response(err, result, args, last_query){
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                }
-
-                if (result.length) {
-                    console.log("Location already exists");             
-                    reject(err);
-                        
+            function send_response(error, result, args, last_query){
+                if (error) {
+                    console.log(error);
+                    reject(error);
                 }
                 else {
-                    if (params.status == false || params.status.toLowerCase() == "false") { //create a deactivated location
-                        mysql.use(db)
-                        .query(
-                            `INSERT INTO im_location (id, code, name, description, user_id, deleted) 
-                                VALUES (?, ?, ?, ?, ?, now())`,
-                                [params.id, params.code, params.name, params.description, params.user_id],
-                                function(error, result) {
-                                    if (error) {
-                                        console.log(error);
-                                        reject(error);
-                                    }
-                                    else {
-                                        location.message = "Successfully created a new location";
-                                        location.items = params;
-                                        resolve(location);
-                                    }
-                                                    
-                            }
-                        )
-                        .end();
-                    }
-                    else { //create an activated location
-                        mysql.use(db)
-                        .query(
-                            `INSERT INTO im_location (id, code, name, description, user_id) 
-                                VALUES (?, ?, ?, ?, ?)`,
-                                [params.id, params.code, params.name, params.description, params.user_id],
-                                function(error, result) {
-                                    if (error) {
-                                        console.log(error);
-                                        reject(error);
-                                    }
-                                    else {
-                                        location.message = "Successfully created a new location";
-                                        location.items = params;
-                                        resolve(location);
-                                    }
-                                                    
-                            }
-                        )
-                        .end();
-                    }
+                    location.message = "Successfully created a new location";
+                    location.items = params;
+                    resolve(location);
                 }
             }
         })
@@ -1429,112 +1415,59 @@ module.exports = function(db_name) {
 
 
 
-    module.change_location_status = (data) => {
+    module.change_location_status = (params) => {
         return new Promise(function(resolve, reject) {
-            
-            let datum = data[0];
+            let location = {};
+
             mysql.use(db)
             .query(
-                'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                [datum.user_id, datum.id],
-                function(err, result) {
-                    if (err) {
-                        reject(err);
-                    }else if(result.length==0){
-                        resolve([]);
-                    }else{                        
-                     
-                        if(result[0].deleted==null){
-
-                            mysql.use(db)
-                            .query(
-                                'UPDATE im_location SET deleted = NOW() WHERE id = ?',
-                                datum.id,
-                                function(err1,result1){
-                                    if (err1) {
-                                        reject(err1);
-                                    }else{
-
-                                        mysql.use(db)
-                                        .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
-                                            function(err, result) {
-                                                if (err) {
-                                                    reject(err);
-                                                }else{
-                                                    let location = {
-                                                        id          : result[0].id,
-                                                        code        : result[0].code,
-                                                        name        : result[0].name,
-                                                        description : result[0].description,
-                                                        created     : result[0].created,
-                                                        updated     : result[0].updated,
-                                                        deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
-                                                        status      : false,
-                                                        message     : "Successfully deactivated location"
-                                                    };
-
-                                                    resolve(location);
-                                                }
-                                            }
-                                        ).end()
-
-                                    }
-                                }
-                            ).end()
-
-                        }else{
-
-                            mysql.use(db)
-                            .query(
-                                'UPDATE im_location SET deleted = null WHERE id = ?',
-                                datum.id,
-                                function(err1,result1){
-                                    if (err1) {
-                                        reject(err1);
-                                    }else{
-
-                                        mysql.use(db)
-                                        .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
-                                            function(err, result) {
-                                                if (err) {
-                                                    reject(err);
-                                                }else{
-                                                    let location = {
-                                                        id          : result[0].id,
-                                                        code        : result[0].code,
-                                                        name        : result[0].name,
-                                                        description : result[0].description,
-                                                        created     : result[0].created,
-                                                        updated     : result[0].updated,
-                                                        deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
-                                                        status      : true,
-                                                        message     : "Successfully activated location"
-                                                    };
-                                                    
-                                                
-                                                    resolve(location);
-                                                }
-                                            }
-                                        ).end()
-
-                                    }
-                                }
-                            ).end()
-
+                `SELECT * FROM im_location 
+                    WHERE id = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                    [params.id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
                         }
-                            
-                        
-                    } 
-                    
-                }
+                        else if (!res.length) {
+                            console.log("Location not found")
+                            reject(new Error("Location not found"));
+                        }
+                        else {
+                            if (params.status == false || params.status.toLowerCase() == "false") {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET deleted = now(), updated = now()
+                                        WHERE id = ? and user_id = ?`,
+                                        [params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                            else {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET deleted = NULL, updated = now()
+                                        WHERE id = ? and user_id = ?`,
+                                        [params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
+                    }
             )
-            .end();
+
+            function send_response(err, res) {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                }
+                else {
+                    location.message = "Successfully updated location";
+                    location.items = params;
+                    resolve(location);
+                }
+            }
 
         })
     }
