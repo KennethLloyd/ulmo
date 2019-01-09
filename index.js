@@ -1341,15 +1341,15 @@ module.exports = function(db_name) {
     }
 
 
-    module.retrieve_locations = (search, filter_status, page, limit) => {
+    module.retrieve_locations = (params) => {
         return new Promise(function(resolve, reject) {
-            let filter_query = '';
+            let filter_query = ' ';
 
-            if (filter_status == 1) {
-                filter_query = ' AND deleted IS NULL';        
+            if (params.filter_status == 1) {
+                filter_query = ' AND deleted IS NULL ';        
             }
-            else if (filter_status == 0) {
-                filter_query = ' AND deleted IS NOT NULL';     
+            else if (params.filter_status == 0) {
+                filter_query = ' AND deleted IS NOT NULL ';     
             }
             
             mysql.use(db)
@@ -1359,8 +1359,9 @@ module.exports = function(db_name) {
                     updated AS date_updated,
                     deleted AS date_deleted
                     FROM im_location
-                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query,
-                    ["%"+search+"%", "%"+search+"%"],
+                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query + `
+                    LIMIT ?, ?`,
+                    ["%"+params.search+"%", "%"+params.search+"%", params.page, params.limit],
                     function(err, result) {
                         if (err) {
                             console.log(err);
