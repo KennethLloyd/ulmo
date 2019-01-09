@@ -1594,56 +1594,89 @@ module.exports = function(db_name) {
 
             function getHeaders(cb){
 
-                let qry         = 'SELECT id, created, type';
-                let count       = 'SELECT count(id)';
-                let from        = ' FROM im_movement_transaction WHERE deleted IS NULL AND franchise_id ='+mysql.escape(datum.franchise_id);
-                let transaction_id = ' AND transaction_id LIKE '+mysql.escape('%'+datum.type+'%');
-                let type        = ' AND type = '+mysql.escape(datum.type);
-                let daterange   = ' AND (created BETWEEN '+mysql.escape(datum.from)+' AND DATE_ADD('+mysql.escape(datum.to)+',INTERVAL 1 DAY))';
+                let orderby = '';
+
+                if(datum.sort_id && datum.sort_desc){
+                    if(datum.sort_desc.toLowerCase() === "true" || datum.sort_desc == true){
+                        
+                        switch(datum.sort_id.toLowerCase()) {
+                            case "id"           :  orderby = " ORDER BY im.id desc"; break;                              
+                            case "type"         :  orderby = " ORDER BY im.type desc"; break;
+                            case "created"      :  orderby = " ORDER BY im.created desc"; break;
+                            case "first_name"   :  orderby = " ORDER BY u.first_name desc"; break;
+                            case "last_name"    :  orderby = " ORDER BY u.last_name desc"; break;
+                        }
+                                                
+                    }else if(datum.sort_desc.toLowerCase() === "false" || datum.sort_desc == false){
+
+                        switch(datum.sort_id.toLowerCase()) {
+                            case "id"           :  orderby = " ORDER BY im.id desc"; break;                              
+                            case "type"         :  orderby = " ORDER BY im.type desc"; break;
+                            case "created"      :  orderby = " ORDER BY im.created desc"; break;
+                            case "first_name"   :  orderby = " ORDER BY u.first_name desc"; break;
+                        }
+
+                    }
+                }
+
+                let qry         = 'SELECT im.id, im.created, im.type, im.user_id, u.first_name, u.last_name';
+                let count       = 'SELECT count(im.id)';
+                let from        = ' FROM im_movement_transaction im';
+                let join        = ' LEFT JOIN users u ON u.id = im.user_id';
+                let where       = ' WHERE im.deleted IS NULL AND im.franchise_id ='+mysql.escape(datum.franchise_id);
+                let transaction_id = ' AND im.transaction_id LIKE '+mysql.escape('%'+datum.type+'%');
+                let type        = ' AND im.type = '+mysql.escape(datum.type);
+                let daterange   = ' AND (im.created BETWEEN '+mysql.escape(datum.from)+' AND DATE_ADD('+mysql.escape(datum.to)+',INTERVAL 1 DAY))';
                 let limit       = ' LIMIT '+datum.page+','+datum.limit;
 
                 if(!datum.transaction_id && !datum.type && !datum.daterange){
-                    qry += ',('+count+from+') AS "total"';
-                    qry += from;
+                    qry += ', ('+count+from+where+') AS "total"';
+                    qry += from+join+where;
                 }
 
                 if(datum.transaction_id && !datum.type && !datum.daterange){
-                    qry += ',('+count+from+transaction_id+') AS "total"';
-                    qry += from+transaction_id;
+                    qry += ', ('+count+from+join+where+transaction_id+') AS "total"';
+                    qry += from+join+where+transaction_id;
                 }
 
                 if(!datum.transaction_id && datum.type && !datum.daterange){
-                    qry += ',('+count+from+type+') AS "total"';
-                    qry += from+type;
+                    qry += ', ('+count+from+join+where+type+') AS "total"';
+                    qry += from+join+where+type;
                 }
 
                 if(!datum.transaction_id && !datum.type && datum.daterange){
-                    qry += ',('+count+from+daterange+') AS "total"';
-                    qry += from+daterange;
+                    qry += ', ('+count+from+join+where+daterange+') AS "total"';
+                    qry += from+join+where+daterange;
                 }
 
                 if(datum.transaction_id && datum.type && !datum.daterange){
-                    qry += ',('+count+from+transaction_id+type+') AS "total"';
-                    qry += from+transaction_id+type;
+                    qry += ', ('+count+from+join+where+transaction_id+type+') AS "total"';
+                    qry += from+join+where+transaction_id+type;
                 }
 
                 if(!datum.transaction_id && datum.type && datum.daterange){
-                    qry += ',('+count+from+daterange+type+') AS "total"';
-                    qry += from+daterange+type;
+                    qry += ', ('+count+from+join+where+daterange+type+') AS "total"';
+                    qry += from+join+where+daterange+type;
                 }
 
                 if(datum.transaction_id && !datum.type && datum.daterange){
-                    qry += ',('+count+from+daterange+transaction_id+') AS "total"';
-                    qry += from+daterange+transaction_id;
+                    qry += ',('+count+from+join+where+daterange+transaction_id+') AS "total"';
+                    qry += from+join+where+daterange+transaction_id;
                 }
 
                 if(datum.transaction_id && datum.type && datum.daterange){
-                    qry += ',('+count+from+daterange+transaction_id+type+') AS "total"';
-                    qry += from+daterange+transaction_id+type;
+                    qry += ',('+count+from+join+where+daterange+transaction_id+type+') AS "total"';
+                    qry += from+join+where+daterange+transaction_id+type;
                 }
 
 
-                let finalqry = qry+limit;   
+                let finalqry = '';   
+
+                if(orderby.length==0){
+                    finalqry = qry+limit;
+                }else{
+                    finalqry = qry+orderby+limit;
+                }
                 
                 mysql.use(db)
                 .query(
@@ -1659,9 +1692,12 @@ module.exports = function(db_name) {
                         }else{         
                             for(let i=0; i<result.length; i++){
                                 let transaction = {
-                                    id      : result[i].id,
-                                    created : result[i].created,
-                                    type    : result[i].type                                    
+                                    id          : result[i].id,
+                                    created     : result[i].created,
+                                    type        : result[i].type,
+                                    user_id     : result[i].user_id,
+                                    first_name  : result[i].first_name,
+                                    last_name   : result[i].last_name                                  
                                 }
                                 transactions.push(transaction)
                                 if(i==result.length-1){           
@@ -1682,7 +1718,7 @@ module.exports = function(db_name) {
                 for(let i=0; i<transactions.length; i++){
                     mysql.use(db)
                     .query(
-                        'SELECT * FROM im_item_movement WHERE transaction_id = ?',
+                        'SELECT im.*, m.code AS "item_code", m.name AS "item_name" FROM im_item_movement im LEFT JOIN material m ON m.id = im.item_id WHERE im.transaction_id = ?',
                         transactions[i].id,
                         function(err, result, args, last_query){
                             if (err) {
@@ -1696,13 +1732,14 @@ module.exports = function(db_name) {
                                     id              : result[a].id,
                                     transaction_id  : result[a].transaction_id,
                                     item_id         : result[a].item_id,
+                                    item_code       : result[a].item_code,
+                                    item_name       : result[a].item_name,
                                     quantity        : result[a].quantity,
                                     location_id     : result[a].location_id,
                                     expiration_date : result[a].expiration_date,
                                     remarks         : result[a].remarks,
                                     type            : result[a].type,       
-                                    franchise_id    : result[a].franchise_id,                             
-                                    user_id         : result[a].user_id,
+                                    franchise_id    : result[a].franchise_id,    
                                     created         : result[a].created,
                                     updated         : result[a].updated,
                                     deleted         : result[a].deleted
