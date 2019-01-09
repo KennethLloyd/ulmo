@@ -1336,11 +1336,12 @@ module.exports = function(db_name) {
             let filter_query = ' ';
             let location = {};
 
-            if (params.filter_status == 1) {
-                filter_query = ' AND deleted IS NULL ';        
+            if (params.filter_status == false || params.filter_status.toLowerCase() == "false") {
+                filter_query = ' AND deleted IS NOT NULL ';   
             }
-            else if (params.filter_status == 0) {
-                filter_query = ' AND deleted IS NOT NULL ';     
+
+            else {
+                filter_query = ' AND deleted IS NULL ';     
             }
             
             mysql.use(db)
