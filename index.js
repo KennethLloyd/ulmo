@@ -1341,83 +1341,36 @@ module.exports = function(db_name) {
     }
 
 
-    module.retrieve_locations = (data) => {
-        return new Promise(function(resolve, reject) {     
+    module.retrieve_locations = (search, filter_status, page, limit) => {
+        return new Promise(function(resolve, reject) {
+            let filter_query = '';
+
+            if (filter_status == 1) {
+                filter_query = ' AND deleted IS NULL';        
+            }
+            else if (filter_status == 0) {
+                filter_query = ' AND deleted IS NOT NULL';     
+            }
             
-                let datum = data[0];
-
-                let status  = '';
-
-                if(datum.filter_status == undefined || datum.filter_status == null){
-                    status=' ';
-                }else if(datum.filter_status == true || datum.filter_status.toLowerCase() == "true"){
-                    status=' AND deleted IS NULL';
-                }else if(datum.filter_status == false || datum.filter_status.toLowerCase() == "false"){
-                    status=' AND deleted IS NOT NULL';
-                }
-
-                let qry     = 'SELECT * ';
-                let count   = 'SELECT COUNT(id) '
-                let from    = ' FROM im_location WHERE user_id ='+datum.user_id;
-                let where   = ' AND (code LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.description+'%")';                
-                let limit   = ' LIMIT '+datum.page+','+datum.limit;
-
-
-                if(!datum.search && !datum.filter_status){
-                    qry += ',('+count+from+') AS "total"';
-                    qry += from;
-                }
-
-                if(!datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+') AS "total"';
-                    qry += from+status;
-                }
-
-                if(datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+where+') AS "total"';
-                    qry += from+status+where;
-                }
-
-                let finalqry = qry+limit;                
-                
-                mysql.use(db)
-                .query(
-                    finalqry,
-                    function(err, result, args, last_query){
+            mysql.use(db)
+            .query(
+                `SELECT id, code, name, description, user_id,
+                    created AS date_created, 
+                    updated AS date_updated,
+                    deleted AS date_deleted
+                    FROM im_location
+                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query,
+                    ["%"+search+"%", "%"+search+"%"],
+                    function(err, result) {
                         if (err) {
+                            console.log(err);
                             reject(err);
-                        }else if(result.length==0){
-                            resolve({total:0, locations:[]});
-                        }else{
-                            
-                            let total = result[0].total;
-                            let locations = [];
-                            let i =0;                            
-                            for(i=0; i<result.length;i++){
-                                let status = true;
-                                if(result[i].deleted!=null){
-                                    status = false;
-                                }
-                                locations.push({
-                                    id          : result[i].id,
-                                    code        : result[i].code,
-                                    name        : result[i].name,
-                                    description : result[i].description,
-                                    created     : result[i].created,
-                                    updated     : result[i].updated,
-                                    deleted     : result[i].deleted,
-                                    user_id     : result[i].user_id,
-                                    status      : status
-                                });
-
-                                if(i==result.length-1){                                    
-                                    resolve({total:total, locations:locations});
-                                }
-                            }
-                            
-                        } 
+                        }
+                        else {
+                            resolve(result);
+                        }
                     }
-                ).end();        
+            )
 
         })
     }
