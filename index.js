@@ -1269,74 +1269,78 @@ module.exports = function(db_name) {
             })
     }
 
-    module.create_location = (data) => {
+    module.create_location = (params) => {
         return new Promise(function(resolve, reject) {
             
-            const uuid =uuid.v4();
+            params.id = uuid.v4();
 
-            let datum = data[0];
-                datum.id=uuid
-            let deleted = null;
-            
-            if(datum.status==false || datum.status.toLowerCase()=="false"){
-                deleted = new Date();
-            }
-                     
-
-            function start(){                
-                mysql.use(db)
-                .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
-                    [datum.code, datum.user_id],
-                    send_response
-                ).end()                
-            }
+            let location = {};
+             
+            mysql.use(db)
+            .query(
+                `SELECT * FROM im_location 
+                    WHERE code = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                [params.code, params.user_id],
+                send_response
+            ).end()              
 
             function send_response(err, result, args, last_query){
                 if (err) {
+                    console.log(err);
                     reject(err);
                 }
 
-                if (result.length > 0) {             
-                    reject({code: "DUP_ENTRY"})
+                if (result.length) {
+                    console.log("Location already exists");             
+                    reject(err);
                         
-                }else{
-                    
-                    mysql.use(db)
-                    .query(
-                        'INSERT INTO im_location (id, code, name, description, user_id, deleted) VALUES (?,?,?,?,?,?)',
-                        [datum.id,datum.code, datum.name, datum.description, datum.user_id,deleted],
-                        function(error, result) {
-                            if (error) {
-                                reject(error);
-                            }else{
-                                
-
-                                let location = {
-                                    message:    'Successfully created location',
-                                    id:          datum.id,
-                                    code:        datum.code,
-                                    name:        datum.name,
-                                    description: datum.description,
-                                    user_id:     datum.user_id,
-                                    status:      datum.status            
-                                };
-                                    
-                                resolve([location])
-                                
+                }
+                else {
+                    if (params.status == false || params.status.toLowerCase() == "false") { //create a deactivated location
+                        mysql.use(db)
+                        .query(
+                            `INSERT INTO im_location (id, code, name, description, user_id, deleted) 
+                                VALUES (?, ?, ?, ?, ?, now())`,
+                                [params.id, params.code, params.name, params.description, params.user_id],
+                                function(error, result) {
+                                    if (error) {
+                                        console.log(error);
+                                        reject(error);
+                                    }
+                                    else {
+                                        location.message = "Successfully created a new location";
+                                        location.items = params;
+                                        resolve(location);
+                                    }
+                                                    
                             }
-                                                
-                        }
-                    )
-                    .end();
-
+                        )
+                        .end();
+                    }
+                    else { //create an activated location
+                        mysql.use(db)
+                        .query(
+                            `INSERT INTO im_location (id, code, name, description, user_id) 
+                                VALUES (?, ?, ?, ?, ?)`,
+                                [params.id, params.code, params.name, params.description, params.user_id],
+                                function(error, result) {
+                                    if (error) {
+                                        console.log(error);
+                                        reject(error);
+                                    }
+                                    else {
+                                        location.message = "Successfully created a new location";
+                                        location.items = params;
+                                        resolve(location);
+                                    }
+                                                    
+                            }
+                        )
+                        .end();
+                    }
                 }
             }
-
-            start();
-
-            
-
         })
     }
 
