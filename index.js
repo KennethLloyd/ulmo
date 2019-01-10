@@ -7,7 +7,7 @@ const winston           = require('winston');
 const async             = require("async");
 const uuid              = require("uuid");
 
-mysql.add('jeeves_db', config.JEEVES_DB);
+mysql.add('magento', config.GALADRIEL_DB);
 
 module.exports = function(db_name) {
     var module = {};
