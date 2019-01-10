@@ -98,8 +98,8 @@ module.exports = function(db_name) {
                         start();
                     })
                     .catch(function(err) {           
-                        winston.error('Error in getting balance history details', err);           
-                        return next(err);
+                        console.log(err);
+                        reject(err);
                     })
             }
 
@@ -271,7 +271,7 @@ module.exports = function(db_name) {
             function fetch_items_no_breakdown(row, callback) {
                 function send_callback(err, result, args, last_query) {
                     if (err) {
-                        winston.error('Error in retrieving current inventory', last_query);
+                        console.log(err);
                         return callback(err);
                     }
                     row['items'] = result;
@@ -508,8 +508,8 @@ module.exports = function(db_name) {
                         )  
                     })
                     .catch(function(err) {           
-                        winston.error('Error in getting current inventory', err);           
-                        return next(err);
+                        console.log(err);
+                        reject(err);
                     })
                 }
                 else {
@@ -521,7 +521,7 @@ module.exports = function(db_name) {
             function prepare_save_details(row, callback) {
                 function send_callback(err, result) {
                     if (err) {
-                        winston.error('Error in saving current inventory details', last_query);
+                        console.log(err);
                         return callback(err);
                     }
                     return callback();
@@ -540,7 +540,7 @@ module.exports = function(db_name) {
             function save_details(row, callback) {
                 function send_callback(err, result) {
                     if (err) {
-                        winston.error('Error in saving current inventory details', last_query);
+                        console.log(err);
                         return callback(err);
                     }
                     return callback();
