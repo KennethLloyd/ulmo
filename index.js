@@ -1415,7 +1415,6 @@ module.exports = function(db_name) {
     }
 
 
-
     module.change_location_status = (params) => {
         return new Promise(function(resolve, reject) {
             let location = {};
@@ -1495,6 +1494,9 @@ module.exports = function(db_name) {
                             console.log("Location not found")
                             reject(new Error("Location not found"));
                         }
+                        else if (typeof params.code !== 'undefined' && params.code !== undefined) {
+                            find_code_duplicate();
+                        }
                         else {
                             mysql.use(db)
                             .query(
@@ -1506,6 +1508,34 @@ module.exports = function(db_name) {
                         }
                     }
             )
+
+            function find_code_duplicate() {
+                mysql.use(db)
+                .query(
+                    `SELECT * FROM im_location
+                        WHERE code = ? AND id != ?`,
+                        [params.code, params.id],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else if (res.length) {
+                                console.log("Code already exists")
+                                reject(new Error("Code already exists"));
+                            }
+                            else {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET ?
+                                        WHERE id = ? and user_id = ?`,
+                                        [params, params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
+                )
+            }
 
             function send_response(err, res) {
                 if (err) {
