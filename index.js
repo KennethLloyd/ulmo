@@ -1192,74 +1192,113 @@ module.exports = function(db_name) {
         })
     }
 
-    module.item_movement_history = (data) => {
-        return new Promise(function(resolve, reject) {     
-            
-                let datum = data[0];
+    module.get_movement_history = (params) => {
+        return new Promise(function(resolve, reject) {
+            let movement = {};
+            let items = [];
 
-                let qry     = 'SELECT id, item_id, quantity, location_id, expiration_date, remarks, type';
-                let count   = 'SELECT COUNT(id) ';
-                let from    = ' FROM im_item_movement WHERE deleted IS NULL AND user_id = '+mysql.escape(datum.user_id);
-                let where1  = ' AND location_id IN ('+mysql.escape(datum.location_id)+')';
-                let where2  = ' AND item_id IN ('+mysql.escape(datum.item_id)+')';
-                let limit   = ' LIMIT '+datum.page+','+datum.limit;
+            if (typeof params.search_item === 'undefined' || params.search_item === undefined) {
+                params.search_item = '';
+            }
 
-                if(!datum.location_id && !datum.item_id){
-                    qry += ',('+count+from+') AS "total"';
-                    qry += from;
-                }
+            if (typeof params.search_location === 'undefined' || params.search_location === undefined) {
+                params.search_location = '';
+            }
 
-                if(datum.location_id && !datum.item_id){
-                    qry += ',('+count+from+where1+') AS "total"';
-                    qry += from+where1;
-                }
-
-                if(!datum.location_id && datum.item_id){
-                    qry += ',('+count+from+where2+') AS "total"';
-                    qry += from+where2;
-                }
-
-                if(datum.location_id && datum.item_id){
-                    qry += ',('+count+from+where1+where2+') AS "total"';
-                    qry += from+where1+where2;
-                }
-
-                let finalqry = qry+limit;        
-                
+            if ((typeof params.from_date !== 'undefined' && params.from_date !== undefined) && (typeof params.to_date !== 'undefined' && params.to_date !== undefined)) {
                 mysql.use(db)
                 .query(
-                    finalqry,
-                    function(err, result, args, last_query){
-                        if (err) {
-                            reject(err);
-                        }else if(result.length==0){
-                            resolve({total:0, locations:[]});
-                        }else{
-                            
-                            let total = result[0].total;
-                            let items = [];
-                            let i =0;                            
-                            for(i=0; i<result.length;i++){
+                    `SELECT mt.id AS transaction_id, mt.type, mt.user_id, 
+                        u.` + user_config.user_first_name + ` AS user_first_name, u.` + user_config.user_last_name + ` AS user_last_name,
+                        mt.created AS timestamp,
+                        (SELECT COUNT(*) FROM im_movement_transaction
+                            WHERE (created BETWEEN ? AND ?)
+                            AND deleted IS NULL) AS total
+                        FROM im_movement_transaction mt, ` + user_config.user_table + ` u
+                        WHERE (mt.created BETWEEN ? AND ?)
+                        AND mt.user_id = u.` + user_config.user_id + `
+                        AND mt.deleted IS NULL
+                        LIMIT ?, ?`,
+                        [params.from_date, params.to_date, params.from_date, params.to_date, params.page, params.limit],
+                        prepare_get_movements
+                ) 
+            }
+            else {
+                mysql.use(db)
+                .query(
+                    `SELECT mt.id AS transaction_id, mt.type, mt.user_id, 
+                        u.` + user_config.user_first_name + ` AS user_first_name, u.` + user_config.user_last_name + ` AS user_last_name,
+                        mt.created AS timestamp,
+                        (SELECT COUNT(*) FROM im_movement_transaction
+                            WHERE deleted IS NULL) AS total
+                        FROM im_movement_transaction mt, ` + user_config.user_table + ` u
+                        WHERE mt.user_id = u.` + user_config.user_id + `
+                        AND mt.deleted IS NULL
+                        LIMIT ?, ?`,
+                        [params.page, params.limit],
+                        prepare_get_movements
+                ) 
+            } 
+            
+            function prepare_get_movements(err, transactions) {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                }
+                else {
+                    async.each(transactions, get_movements, send_response);
+                }
+            }
 
-                                items.push({
-                                    id              : result[i].id,
-                                    item_id         : result[i].item_id, 
-                                    quantity        : result[i].quantity,
-                                    location_id     : result[i].location_id,
-                                    expiration_date : result[i].expiration_date,
-                                    remarks         : result[i].remarks,
-                                    type            : result[i].type
-                                });
-
-                                if(i==result.length-1){                                    
-                                    resolve({total:total, items:items});
-                                }
-                            }
-                            
-                        } 
+            function get_movements(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log('Error in creating item movement');
+                        return callback(err);
                     }
-                ).end();        
-            })
+                    row['movements'] = result;
+                    items.push(row);
+                    return callback();
+                }
+
+                mysql.use(db)
+                .query(
+                    `SELECT mv.id, mv.item_id, mv.quantity,
+                    i.` + item_config.item_name + ` AS item_sku, i.` + item_config.item_name + ` AS item_name,
+                        mv.location_id, l.code, l.name,
+                        mv.expiration_date, mv.remarks
+                        FROM im_item_movement mv, im_location l,
+                        ` + item_config.item_table + ` i
+                        WHERE mv.location_id = l.id
+                        AND mv.item_id = i.` + item_config.item_id + `
+                        AND (i.` + item_config.item_name + ` LIKE ? OR i.` + item_config.item_name + ` LIKE ?)
+                        AND (l.name LIKE ? OR l.code LIKE ?)
+                        AND mv.transaction_id = ?`,
+                        ["%"+params.search_item+"%", "%"+params.search_item+"%", "%"+params.search_location+"%", "%"+params.search_location+"%", row.transaction_id],
+                        send_callback
+                ) 
+            }
+
+            function send_response(err, res) {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                }
+                else {
+                    if (items.length) {
+                        movement.total = items[0].total;
+                        for (let i=0;i<items.length;i++) {
+                            delete items[i].total;
+                        }
+                    }
+                    else {
+                        movement.total = 0;
+                    }
+                    movement.items = items;
+                    resolve(movement);
+                }
+            }
+        })
     }
 
     module.create_location = (params) => {
