@@ -1269,403 +1269,896 @@ module.exports = function(db_name) {
             })
     }
 
-    module.create_location = (data) => {
+    module.create_location = (params) => {
         return new Promise(function(resolve, reject) {
             
-            const uuid =uuid.v4();
+            params.id = uuid.v4();
 
-            let datum = data[0];
-                datum.id=uuid
-            let deleted = null;
-            
-            if(datum.status==false || datum.status.toLowerCase()=="false"){
-                deleted = new Date();
-            }
-                     
-
-            function start(){                
-                mysql.use(db)
-                .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
-                    [datum.code, datum.user_id],
-                    send_response
-                ).end()                
-            }
-
-            function send_response(err, result, args, last_query){
-                if (err) {
-                    reject(err);
-                }
-
-                if (result.length > 0) {             
-                    reject({code: "DUP_ENTRY"})
-                        
-                }else{
-                    
-                    mysql.use(db)
-                    .query(
-                        'INSERT INTO im_location (id, code, name, description, user_id, deleted) VALUES (?,?,?,?,?,?)',
-                        [datum.id,datum.code, datum.name, datum.description, datum.user_id,deleted],
-                        function(error, result) {
-                            if (error) {
-                                reject(error);
-                            }else{
-                                
-
-                                let location = {
-                                    message:    'Successfully created location',
-                                    id:          datum.id,
-                                    code:        datum.code,
-                                    name:        datum.name,
-                                    description: datum.description,
-                                    user_id:     datum.user_id,
-                                    status:      datum.status            
-                                };
-                                    
-                                resolve([location])
-                                
-                            }
-                                                
-                        }
-                    )
-                    .end();
-
-                }
-            }
-
-            start();
-
-            
-
-        })
-    }
-
-
-    module.retrieve_locations = (data) => {
-        return new Promise(function(resolve, reject) {     
-            
-                let datum = data[0];
-
-                let status  = '';
-
-                if(datum.filter_status == undefined || datum.filter_status == null){
-                    status=' ';
-                }else if(datum.filter_status == true || datum.filter_status.toLowerCase() == "true"){
-                    status=' AND deleted IS NULL';
-                }else if(datum.filter_status == false || datum.filter_status.toLowerCase() == "false"){
-                    status=' AND deleted IS NOT NULL';
-                }
-
-                let qry     = 'SELECT * ';
-                let count   = 'SELECT COUNT(id) '
-                let from    = ' FROM im_location WHERE user_id ='+datum.user_id;
-                let where   = ' AND (code LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.search+'%" OR name LIKE "%'+datum.description+'%")';                
-                let limit   = ' LIMIT '+datum.page+','+datum.limit;
-
-
-                if(!datum.search && !datum.filter_status){
-                    qry += ',('+count+from+') AS "total"';
-                    qry += from;
-                }
-
-                if(!datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+') AS "total"';
-                    qry += from+status;
-                }
-
-                if(datum.search && datum.filter_status){
-                    qry += ',('+count+from+status+where+') AS "total"';
-                    qry += from+status+where;
-                }
-
-                let finalqry = qry+limit;                
-                
-                mysql.use(db)
-                .query(
-                    finalqry,
-                    function(err, result, args, last_query){
+            let location = {};
+             
+            mysql.use(db)
+            .query(
+                `SELECT * FROM im_location 
+                    WHERE code = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                    [params.code, params.user_id],
+                    function(err, result) {
                         if (err) {
+                            console.log(err);
                             reject(err);
-                        }else if(result.length==0){
-                            resolve({total:0, locations:[]});
-                        }else{
-                            
-                            let total = result[0].total;
-                            let locations = [];
-                            let i =0;                            
-                            for(i=0; i<result.length;i++){
-                                let status = true;
-                                if(result[i].deleted!=null){
-                                    status = false;
-                                }
-                                locations.push({
-                                    id          : result[i].id,
-                                    code        : result[i].code,
-                                    name        : result[i].name,
-                                    description : result[i].description,
-                                    created     : result[i].created,
-                                    updated     : result[i].updated,
-                                    deleted     : result[i].deleted,
-                                    user_id     : result[i].user_id,
-                                    status      : status
-                                });
-
-                                if(i==result.length-1){                                    
-                                    resolve({total:total, locations:locations});
-                                }
+                        }
+        
+                        if (result.length) {
+                            console.log("Location already exists");             
+                            reject(err);
+                                
+                        }
+                        else {
+                            if (params.status == false || params.status.toLowerCase() == "false") { //create a deactivated location
+                                mysql.use(db)
+                                .query(
+                                    `INSERT INTO im_location (id, code, name, description, user_id, deleted) 
+                                        VALUES (?, ?, ?, ?, ?, now())`,
+                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                        send_response
+                                )
                             }
-                            
-                        } 
+                            else { //create an activated location
+                                mysql.use(db)
+                                .query(
+                                    `INSERT INTO im_location (id, code, name, description, user_id) 
+                                        VALUES (?, ?, ?, ?, ?)`,
+                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
                     }
-                ).end();        
+                )            
 
-        })
-    }
-
-
-
-    module.retrieve_location = (data) => {
-        return new Promise(function(resolve, reject) {
-            
-            let datum = data[0];
-            mysql.use(db)
-            .query(
-                'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                [datum.user_id,datum.id],
-                function(err, result) {
-                    if (err) {
-                        reject(err);
-                    }else if(result.length==0){
-                        resolve([]);
-                    }else{                        
-                     
-                        let status = true;
-                        if(result[0].deleted!=null){
-                            status = false;
-                        }
-                        let location = {
-                            id          : result[0].id,
-                            code        : result[0].code,
-                            name        : result[0].name,
-                            description : result[0].description,
-                            created     : result[0].created,
-                            updated     : result[0].updated,
-                            deleted     : result[0].deleted,
-                            user_id     : result[0].user_id,
-                            status      : status
-                        };
-                                                      
-                        resolve(location);
-                            
-                        
-                    } 
-                    
+            function send_response(error, result, args, last_query){
+                if (error) {
+                    console.log(error);
+                    reject(error);
                 }
-            )
-            .end();
-
-        })
-    }
-
-
-
-    module.change_location_status = (data) => {
-        return new Promise(function(resolve, reject) {
-            
-            let datum = data[0];
-            mysql.use(db)
-            .query(
-                'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                [datum.user_id, datum.id],
-                function(err, result) {
-                    if (err) {
-                        reject(err);
-                    }else if(result.length==0){
-                        resolve([]);
-                    }else{                        
-                     
-                        if(result[0].deleted==null){
-
-                            mysql.use(db)
-                            .query(
-                                'UPDATE im_location SET deleted = NOW() WHERE id = ?',
-                                datum.id,
-                                function(err1,result1){
-                                    if (err1) {
-                                        reject(err1);
-                                    }else{
-
-                                        mysql.use(db)
-                                        .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
-                                            function(err, result) {
-                                                if (err) {
-                                                    reject(err);
-                                                }else{
-                                                    let location = {
-                                                        id          : result[0].id,
-                                                        code        : result[0].code,
-                                                        name        : result[0].name,
-                                                        description : result[0].description,
-                                                        created     : result[0].created,
-                                                        updated     : result[0].updated,
-                                                        deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
-                                                        status      : false,
-                                                        message     : "Successfully deactivated location"
-                                                    };
-
-                                                    resolve(location);
-                                                }
-                                            }
-                                        ).end()
-
-                                    }
-                                }
-                            ).end()
-
-                        }else{
-
-                            mysql.use(db)
-                            .query(
-                                'UPDATE im_location SET deleted = null WHERE id = ?',
-                                datum.id,
-                                function(err1,result1){
-                                    if (err1) {
-                                        reject(err1);
-                                    }else{
-
-                                        mysql.use(db)
-                                        .query(
-                                            'SELECT * FROM im_location WHERE user_id=? AND id=?',
-                                            [datum.user_id, datum.id],
-                                            function(err, result) {
-                                                if (err) {
-                                                    reject(err);
-                                                }else{
-                                                    let location = {
-                                                        id          : result[0].id,
-                                                        code        : result[0].code,
-                                                        name        : result[0].name,
-                                                        description : result[0].description,
-                                                        created     : result[0].created,
-                                                        updated     : result[0].updated,
-                                                        deleted     : result[0].deleted,
-                                                        user_id     : result[0].user_id,
-                                                        status      : true,
-                                                        message     : "Successfully activated location"
-                                                    };
-                                                    
-                                                
-                                                    resolve(location);
-                                                }
-                                            }
-                                        ).end()
-
-                                    }
-                                }
-                            ).end()
-
-                        }
-                            
-                        
-                    } 
-                    
+                else {
+                    location.message = "Successfully created a new location";
+                    location.items = params;
+                    resolve(location);
                 }
-            )
-            .end();
-
+            }
         })
     }
 
 
-
-    module.update_location = (data) => {
+    module.retrieve_locations = (params) => {
         return new Promise(function(resolve, reject) {
-            
-            let datum = data[0];
+            let filter_query = ' ';
+            let location = {};
 
-            function start(){                
-                mysql.use(db)
-                .query(
-                    'SELECT id,code FROM im_location WHERE code = ? AND user_id=? AND deleted IS NULL',
-                    [datum.code, datum.user_id],
-                    send_response
-                ).end()                
+            if (params.filter_status == false || params.filter_status.toLowerCase() == "false") {
+                filter_query = ' AND deleted IS NOT NULL ';   
             }
 
-            function send_response(err, result, args, last_query){
+            else {
+                filter_query = ' AND deleted IS NULL ';     
+            }
+            
+            mysql.use(db)
+            .query(
+                `SELECT id, code, name, description, user_id,
+                    created AS date_created, 
+                    updated AS date_updated,
+                    deleted AS date_deleted,
+                    (SELECT COUNT(*) 
+                    FROM im_location 
+                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query + `) 
+                    AS total 
+                    FROM im_location
+                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query + `
+                    LIMIT ?, ?`,
+                    ["%"+params.search+"%", "%"+params.search+"%", "%"+params.search+"%", "%"+params.search+"%", params.page, params.limit],
+                    function(err, result) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else {
+                            if (result.length) {
+                                location.total = result[0].total;
+                                for (var i=0;i<result.length;i++) {
+                                    delete result[i].total;
+                                }
+                            }
+                            else {
+                                location.total = 0;
+                            }
+                            location.items = result;
+
+                            resolve(location);
+                        }
+                    }
+            )
+
+        })
+    }
+
+
+    module.retrieve_location = (params) => {
+        return new Promise(function(resolve, reject) {
+            let location = {}; 
+            mysql.use(db)
+            .query(
+                `SELECT id, code, name, description, user_id,
+                    created AS date_created, 
+                    updated AS date_updated,
+                    deleted AS date_deleted 
+                    FROM im_location 
+                    WHERE id = ?`,
+                    [params.id],
+                    function(err, result) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else{                        
+                            location.items = result;
+                                
+                            resolve(location);
+                        } 
+                        
+                    }
+            )
+            .end();
+
+        })
+    }
+
+
+    module.change_location_status = (params) => {
+        return new Promise(function(resolve, reject) {
+            let location = {};
+
+            mysql.use(db)
+            .query(
+                `SELECT * FROM im_location 
+                    WHERE id = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                    [params.id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else if (!res.length) {
+                            console.log("Location not found")
+                            reject(new Error("Location not found"));
+                        }
+                        else {
+                            if (params.status == false || params.status.toLowerCase() == "false") {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET deleted = now(), updated = now()
+                                        WHERE id = ? and user_id = ?`,
+                                        [params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                            else {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET deleted = NULL, updated = now()
+                                        WHERE id = ? and user_id = ?`,
+                                        [params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
+                    }
+            )
+
+            function send_response(err, res) {
                 if (err) {
+                    console.log(err);
                     reject(err);
                 }
+                else {
+                    location.message = "Successfully updated location status";
+                    location.items = params;
+                    resolve(location);
+                }
+            }
 
-                if (result.length > 1) {             
-                    reject({code: "DUP_ENTRY"})
-                }else if (result.length == 1){
+        })
+    }
+
+
+
+    module.update_location = (params) => {
+        return new Promise(function(resolve, reject) {
+            
+            let location = {};
+
+            mysql.use(db)
+            .query(
+                `SELECT * FROM im_location 
+                    WHERE id = ? AND user_id = ? 
+                    AND deleted IS NULL`,
+                    [params.id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                        }
+                        else if (!res.length) {
+                            console.log("Location not found")
+                            reject(new Error("Location not found"));
+                        }
+                        else if (typeof params.code !== 'undefined' && params.code !== undefined) {
+                            find_code_duplicate();
+                        }
+                        else {
+                            mysql.use(db)
+                            .query(
+                                `UPDATE im_location SET ?
+                                    WHERE id = ? and user_id = ?`,
+                                    [params, params.id, params.user_id],
+                                    send_response
+                            )
+                        }
+                    }
+            )
+
+            function find_code_duplicate() {
+                mysql.use(db)
+                .query(
+                    `SELECT * FROM im_location
+                        WHERE code = ? AND id != ?`,
+                        [params.code, params.id],
+                        function(err, res) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+                            }
+                            else if (res.length) {
+                                console.log("Code already exists")
+                                reject(new Error("Code already exists"));
+                            }
+                            else {
+                                mysql.use(db)
+                                .query(
+                                    `UPDATE im_location SET ?
+                                        WHERE id = ? and user_id = ?`,
+                                        [params, params.id, params.user_id],
+                                        send_response
+                                )
+                            }
+                        }
+                )
+            }
+
+            function send_response(err, res) {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                }
+                else {
+                    location.message = "Successfully updated location";
+                    location.items = params;
+                    resolve(location);
+                }
+            }
+
+        })
+    }
+
+    module.deposit = (data) => {
+        return new Promise(function(resolve, reject) {
     
-                    if(result[0].id == datum.id){
+            const datum = data[0];
+    
+            function check_location(cb){
+
+                let noLocation = 0;
+    
+                for(let i=0; i<datum.items.length; i++){
+                    mysql.use(db)
+                        .query(
+                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
+                            [datum.items[i].location_id],
+                            function(error, result) {
+                                if(error) {
+                                    reject(error);
+                                }else{
+                                    if(result.length==0){
+                                        noLocation = 1;                                        
+                                    }else{
+                                        datum.items[i].id = uuid.v4();
+                                        datum.items[i].user_id = datum.user_id;
+                                        datum.items[i].franchise_id = datum.franchise_id;
+                                        datum.items[i].type = "DEPOSIT"
+    
+                                        if(datum.items[i].expiration_date == undefined){
+                                            datum.items[i].expiration_date = null
+                                        }
+    
+                                        if(datum.items[i].remarks == undefined){
+                                            datum.items[i].remarks = null
+                                        } 
+                                    }
+
+                                    if(i == datum.items.length-1 && noLocation == 0){
+                                        return cb(null,true);
+                                    }else if(i == datum.items.length-1 && noLocation == 1){
+                                        return cb(null,false);
+                                    }
+                                }
+                            }
+                        ).end();
+                }
+    
+            }
+    
+            async.series([check_location], (err, results) => {
+                if (err) {
+                    return next(err);
+                }
+    
+                if(results[0]==false){
+                    reject("Location not found no items were saved");
+                }
+                
+                if(results[0]==true){
+                    const transaction_id = uuid.v4();
+
+                    mysql.use(db)
+                        .query(
+                            'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?,"DEPOSIT")',
+                            [transaction_id, datum.franchise_id, datum.user_id],
+                            function(err,res){
+                                if (err) {
+                                    reject(err);
+                                }else{
+                                    for(let i=0; i<datum.items.length; i++){
+                                        mysql.use(db)
+                                        .query(
+                                            'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                            [datum.items[i].id, datum.items[i].franchise_id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    reject(err1);
+                                                }else {
+                                                    if(i == datum.items.length-1){
+                
+                                                        resolve([datum.items, {message: "Items successfully deposited", transaction_id: transaction_id}]);
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        .end();
+                                    }
+                                }
+                            }
+                        ).end()
+
+    
+                }
+    
+            })
+    
+    
+        })
+    }
+
+
+    module.withdraw = (data) => {
+        return new Promise(function(resolve, reject) {
+            
+            const datum = data[0];
+            let noLocation = 0;
+
+            function check_location(cb){
+    
+                for(let i=0; i<datum.items.length; i++){
+                    mysql.use(db)
+                        .query(
+                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
+                            [datum.items[i].location_id],
+                            function(error, result) {
+                                if(error) {
+                                    reject(error);
+                                }else{
+                                    if(result.length==0){
+                                        noLocation = 1;                                        
+                                    }else{
+                                        datum.items[i].id = uuid.v4();
+                                        datum.items[i].user_id = datum.user_id;                                        
+                                        datum.items[i].franchise_id = datum.franchise_id;
+                                        datum.items[i].type = "WITHDRAW"
+    
+                                        if(datum.items[i].expiration_date == undefined){
+                                            datum.items[i].expiration_date = null
+                                        }
+    
+                                        if(datum.items[i].remarks == undefined){
+                                            datum.items[i].remarks = null
+                                        } 
+                                    }
+
+                                    if(i == datum.items.length-1 && noLocation == 0){
+                                        return cb(null,true);
+                                    }else if(i == datum.items.length-1 && noLocation == 1){
+                                        return cb(null,false);
+                                    }
+                                }
+                            }
+                        ).end();
+                }
+    
+            }
+
+            function check_quantity(cb) {   
+                
+                if(noLocation == 1){
+                    return cb(null,"nolocation");
+                }else{
+                
+                let hasExceed           = 0;
+                let hasZeroRemaining    = 0;
+                let hasZeroUserInput    = 0;
+                let counter             = 0;
+
+                datum.items.forEach(function(item, i) {
+
+                    let qry = '';
+
+                        if(item.expiration_date){
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
+                        }else{
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND deleted IS NULL';
+                        }
+
+                    if(parseFloat(item.quantity) <= 0){
+                        hasZeroUserInput = 1;    
+                    }else{
                         mysql.use(db)
                         .query(
-                            'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                            [datum, datum.id, datum.user_id],
+                            qry,
                             function(error, result) {
-                                if (error) {
+                                if(error) {
                                     reject(error);
-                                }else{                                    
-                                    let location = {
-                                        message:    'Successfully updated location',
-                                        id:          datum.id,
-                                        code:        datum.code,
-                                        name:        datum.name,
-                                        description: datum.description,
-                                        user_id:     datum.user_id          
-                                    };
-                                        
-                                    resolve(location)
-                                    
-                                }
-                                                    
-                            }
-                        )
-                        .end();
-                    }else{
-                        reject({code: "NO_RECORD_UPDATED"})
-                    }
-                        
-                }else{
-                    
-                    mysql.use(db)
-                    .query(
-                        'UPDATE im_location SET ? WHERE id = ? AND user_id=?',
-                        [datum, datum.id, datum.user_id],
-                        function(error, result) {
-                            if (error) {
-                                reject(error);
-                            }else{
-                                
-                                let location = {
-                                    message:    'Successfully updated location',
-                                    id:          datum.id,
-                                    code:        datum.code,
-                                    name:        datum.name,
-                                    description: datum.description,
-                                    user_id:     datum.user_id          
-                                };
-                                    
-                                resolve(location)
-                                
-                            }
-                                                
-                        }
-                    )
-                    .end();
+                                } else {
+                                    if(result.length == 0){
+                                        hasZeroUserInput = 1;
+                                    }else{
 
-                }
+                                        function getRemaining(cb2){
+
+                                            let deposit     = 0;
+                                            let withdraw    = 0;
+
+                                            for(let a=0; a < result.length; a++) {
+                                                if(result[a].type === "DEPOSIT") {
+                                                    deposit += parseFloat(result[a].quantity)
+                                                }else if(result[a].type === "WITHDRAW") {
+                                                    withdraw += parseFloat(result[a].quantity)
+                                                }
+                                                
+                                                if(a == result.length - 1) {
+                                                    let remaining = parseFloat(deposit) - parseFloat(withdraw);
+                                                    cb2(null, remaining)
+                                                }
+                                            }
+
+                                        }
+
+                                        async.series([getRemaining], (err, results) => {
+                                            if (err) {
+                                                reject(err)
+                                            }
+
+                                            let remainingbal = results[0];
+
+                                            switch (true) {
+                                                case (remainingbal <= 0)                          :   hasZeroRemaining = 1;
+                                                                                                    break;                                                
+                                                case (remainingbal < parseFloat(item.quantity))   :   hasExceed = 1;
+                                                                                                    break;
+                                                case (remainingbal >= parseFloat(item.quantity))  :   counter++;
+                                                                                                    break;                                      
+                                            }
+
+
+                                            if(counter == datum.items.length && i == datum.items.length-1){
+                                                return cb(null,true);
+                                            }else if (i == datum.items.length-1){
+                                                switch(true){ 
+                                                    case (hasExceed == 1)           : return cb(null, "exceed");
+                                                    case (hasZeroRemaining == 1)    : return cb(null,false);
+                                                    case (hasZeroUserInput == 1)    : return cb(null,false);   
+                                                    default                         : return cb(null,false);
+                                                }
+                                            }                                           
+
+                                        })
+
+                                    }
+                                }
+                            }
+                        ).end()
+                    }
+                    
+                })
+
+                }                
             }
 
-            start();
+    
+            async.series([check_location, check_quantity], (err, results) => {
+                if (err) {
+                    reject(err)
+                }
+                
+                if(results[0]==false || results[1]=="nolocation"){
+                    reject("Location not found no items were saved");
+                }
 
+                if(results[1]==false){
+                    reject("There is no quantity to withdraw");
+                }
+
+                if(results[1]==="exceed"){
+                    reject("Quantity to withdraw is higher than the remaining balance");
+                }
+
+                
+                if(results[0]==true && results[1]==true){
+                   
+                    const transaction_id = uuid.v4();
+
+                    mysql.use(db)
+                        .query(
+                            'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?, "WITHDRAW")',
+                            [transaction_id,datum.franchise_id,datum.user_id],
+                            function(err,res) {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    for(let i=0; i<datum.items.length; i++) {
+                                        mysql.use(db)
+                                        .query(
+                                            'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                            [datum.items[i].id,datum.items[i].franchise_id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
+                                            function(err1, res1) {
+                                                if (err1) {
+                                                    reject(err1);
+                                                } else {
+                                                    if(i == datum.items.length-1) {
+                                                        resolve([datum.items, {message: "Items successfully withdrawn", transaction_id: transaction_id}]);
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        .end();
+                                    }
+                                }
+                            }
+                        ).end()
+                }
+                
+            })
+            
+        })
+  
+    }
+
+
+    module.transfer = (data) => {
+        return new Promise(function(resolve, reject) {
+
+            const datum     = data[0];
+            let verified    = [];
+
+            let noLocation  = 0;
+
+            function check_location(cb){
+    
+                for(let i=0; i<datum.items.length; i++){
+                    mysql.use(db)
+                        .query(
+                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
+                            [datum.items[i].source],
+                            function(error, result) {
+                                if(error) {
+                                    reject(error);
+                                }else{
+                                    if(result.length==0){
+                                        noLocation = 1;                                        
+                                    }else{
+                                       
+                                        datum.items[i].user_id = datum.user_id;
+
+                                        let itemOk = {
+                                            item_id         : datum.items[i].item_id,
+                                            quantity        : datum.items[i].quantity,
+                                            id              : uuid.v4(),
+                                            franchise_id    : datum.franchise_id,
+                                            user_id         : datum.user_id,
+                                            type            : "WITHDRAW",
+                                            location_id     : datum.items[i].source
+                                        }
+
+    
+                                        if(datum.items[i].expiration_date == undefined){
+                                            itemOk.expiration_date = null
+                                        }else{                                            
+                                            itemOk.expiration_date = datum.items[i].expiration_date;          
+                                        }
+    
+                                        if(datum.items[i].remarks == undefined){
+                                            itemOk.remarks = null
+                                        }else{                                                                                     
+                                            itemOk.remarks = datum.items[i].remarks
+                                        }
+                                        
+                                        verified.push(itemOk);
+                                        
+                                    }
+
+                                    if(i == datum.items.length-1 && noLocation == 0){                                        
+                                        return cb(null,true);
+                                    }else if(i == datum.items.length-1 && noLocation == 1){
+                                        return cb(null,false);
+                                    }
+                                }
+                            }
+                        ).end();
+                }
+    
+            }
+
+            function check_quantity(cb) {   
+                
+                if(noLocation == 1){
+                    return cb(null,"nolocation");
+                }else{                    
+                
+                let hasExceed           = 0;
+                let hasZeroRemaining    = 0;
+                let hasZeroUserInput    = 0;
+                let counter             = 0;
+
+                datum.items.forEach(function(item, i) {
+
+                    let qry = '';
+
+                        if(item.expiration_date){
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.source)+' AND user_id ='+mysql.escape(item.user_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
+                        }else{
+                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.source)+' AND user_id ='+mysql.escape(item.user_id)+' AND deleted IS NULL';
+                        }
+                        
+                    if(parseFloat(item.quantity) <= 0){
+                        hasZeroUserInput = 1;    
+                    }else{
+                        mysql.use(db)
+                        .query(
+                            qry,
+                            function(error, result) {
+                                if(error) {
+                                    reject(error);
+                                } else {
+                                    if(result.length == 0){
+                                        hasZeroUserInput = 1;
+                                    }else{
+
+                                        function getRemaining(cb2){
+
+                                            let deposit     = 0;
+                                            let withdraw    = 0;
+
+                                            for(let a=0; a < result.length; a++) {
+                                                if(result[a].type === "DEPOSIT") {
+                                                    deposit += parseFloat(result[a].quantity)
+                                                }else if(result[a].type === "WITHDRAW") {
+                                                    withdraw += parseFloat(result[a].quantity)
+                                                }
+                                                
+                                                if(a == result.length - 1) {
+                                                    let remaining = parseFloat(deposit) - parseFloat(withdraw);
+                                                    cb2(null, remaining)
+                                                }
+                                            }
+
+                                        }
+
+                                        async.series([getRemaining], (err, results) => {
+                                            if (err) {
+                                                reject(err)
+                                            }
+
+                                            let remainingbal = results[0];
+
+                                            switch (true) {
+                                                case (remainingbal <= 0)                          :   hasZeroRemaining = 1;
+                                                                                                    break;                                                
+                                                case (remainingbal < parseFloat(item.quantity))   :   hasExceed = 1;
+                                                                                                    break;
+                                                case (remainingbal >= parseFloat(item.quantity))  :   counter++;
+                                                                                                    break;                                      
+                                            }
+
+
+                                            if(counter == datum.items.length && i == datum.items.length-1){                                                
+                                                return cb(null,true);
+                                            }else if (i == datum.items.length-1){
+                                                switch(true){ 
+                                                    case (hasExceed == 1)           : return cb(null, "exceed");
+                                                    case (hasZeroRemaining == 1)    : return cb(null,false);
+                                                    case (hasZeroUserInput == 1)    : return cb(null,false);   
+                                                    default                         : return cb(null,false);
+                                                }
+                                            }                                           
+
+                                        })
+
+                                    }
+                                }
+                            }
+                        ).end()
+                    }
+                    
+                })
+
+                }                
+            }
+
+    
+            async.series([check_location, check_quantity], (err, results) => {
+                if (err) {
+                    reject(err)
+                }
+                
+                if(results[0]==false || results[1]=="nolocation"){
+                    reject("Location not found no items were saved");
+                }
+
+                if(results[1]==false){
+                    reject("There is no quantity to withdraw");
+                }
+
+                if(results[1]==="exceed"){
+                    reject("Quantity to withdraw is higher than the remaining balance");
+                }
+
+                
+                if(results[0]==true && results[1]==true){                    
+                    fordeposit();
+                }
+                
+            })
+
+            function fordeposit(){                    
+                    
+                    function check_location(cb){
+
+                        let noLocation = 0;
+            
+                        for(let i=0; i<datum.items.length; i++){
+                            mysql.use(db)
+                                .query(
+                                    'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
+                                    [datum.items[i].destination],
+                                    function(error, result) {
+                                        if(error) {
+                                            reject(error);
+                                        }else{
+                                            if(result.length==0){
+                                                noLocation = 1;                                        
+                                            }else{
+                                                /*datum.items[i].id = uuid.v4();
+                                                datum.items[i].user_id = datum.user_id;
+                                                datum.items[i].type = "DEPOSIT"
+            
+                                                if(datum.items[i].expiration_date == undefined){
+                                                    datum.items[i].expiration_date = null
+                                                }
+            
+                                                if(datum.items[i].remarks == undefined){
+                                                    datum.items[i].remarks = null
+                                                }*/
+
+                                                let itemOk = {
+                                                    item_id         : datum.items[i].item_id,
+                                                    quantity        : datum.items[i].quantity,
+                                                    id              : uuid.v4(),
+                                                    franchise_id    : datum.franchise_id,
+                                                    user_id         : datum.user_id,
+                                                    type            : "DEPOSIT",
+                                                    location_id     : datum.items[i].destination
+                                                }
+        
+            
+                                                if(datum.items[i].expiration_date == undefined){
+                                                    itemOk.expiration_date = null
+                                                }else{                                            
+                                                    itemOk.expiration_date = datum.items[i].expiration_date;          
+                                                }
+            
+                                                if(datum.items[i].remarks == undefined){
+                                                    itemOk.remarks = null
+                                                }else{                                                                                     
+                                                    itemOk.remarks = datum.items[i].remarks
+                                                }
+                                                
+                                                verified.push(itemOk); 
+                                            }
+        
+                                            if(i == datum.items.length-1 && noLocation == 0){
+                                                return cb(null,true);
+                                            }else if(i == datum.items.length-1 && noLocation == 1){
+                                                return cb(null,false);
+                                            }
+                                        }
+                                    }
+                                ).end();
+                        }
+            
+                    }
+            
+                    async.series([check_location], (err, results) => {
+                        if (err) {
+                            return next(err);
+                        }
+            
+                        if(results[0]==false){
+                            reject("Location not found no items were saved");
+                        }
+                        
+                        if(results[0]==true){
+
+
+                            const transaction_id = uuid.v4();
+        
+                            mysql.use(db)
+                                .query(
+                                    'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?,"TRANSFER")',
+                                    [transaction_id, datum.franchise_id, datum.user_id],
+                                    function(err,res){
+                                        if (err) {
+                                            reject(err);
+                                        }else{
+                                            for(let i=0; i<verified.length; i++){
+                                                mysql.use(db)
+                                                .query(
+                                                    'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                                    [verified[i].id, verified[i].franchise_id, verified[i].item_id, verified[i].quantity, verified[i].location_id, verified[i].expiration_date, verified[i].remarks, verified[i].user_id, verified[i].type,transaction_id],
+                                                    function(err1, res1) {
+                                                        if (err1) {
+                                                            reject(err1);
+                                                        }else {
+                                                            if(i == verified.length-1){
+                        
+                                                                resolve([verified, {message: "Items successfully transferred", transaction_id: transaction_id}]);
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                                .end();
+                                            }
+                                        }
+                                    }
+                                ).end()
+        
+            
+                        }
+            
+                    })
+
+
+                }
+            
+            
         })
     }
 
