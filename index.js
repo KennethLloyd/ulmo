@@ -138,7 +138,7 @@ module.exports = function(db_name) {
                     }
                 }
                 else {
-
+                    async.each([], fetch_items_no_breakdown, send_response);
                 }
             }
 
@@ -495,42 +495,36 @@ module.exports = function(db_name) {
             start();
 
             function start() {
-                if (!err) {
-                    var retrieve_params = {
-                        location_id: [],
-                        item_id: [],
-                        is_breakdown: 1,
-                        is_grouped: 0,
-                        page: -1, //to remove pagination in get_current_inventory
-                    }
+                var retrieve_params = {
+                    location_id: [],
+                    item_id: [],
+                    is_breakdown: 1,
+                    is_grouped: 0,
+                    page: -1, //to remove pagination in get_current_inventory
+                }
 
-                    module.get_current_inventory(retrieve_params)
-                    .then(function(response) {
-                        inventory = response;
-                        mysql.use(db)
-                        .query(
-                            'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
-                            [balance_id, params.label, params.user_id],
-                            function(err1, res1) {
-                                if (err1) {
-                                    console.log(err1);
-                                    reject(err1);
-                                }
-                                else {
-                                    async.each(inventory, prepare_save_details, send_response);
-                                }   
+                module.get_current_inventory(retrieve_params)
+                .then(function(response) {
+                    inventory = response;
+                    mysql.use(db)
+                    .query(
+                        'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
+                        [balance_id, params.label, params.user_id],
+                        function(err1, res1) {
+                            if (err1) {
+                                console.log(err1);
+                                reject(err1);
                             }
-                        )  
-                    })
-                    .catch(function(err) {           
-                        console.log(err);
-                        reject(err);
-                    })
-                }
-                else {
+                            else {
+                                async.each(inventory, prepare_save_details, send_response);
+                            }   
+                        }
+                    )  
+                })
+                .catch(function(err) {           
                     console.log(err);
-                    reject(err); 
-                }
+                    reject(err);
+                })
             }
 
             function prepare_save_details(row, callback) {
