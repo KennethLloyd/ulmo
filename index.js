@@ -195,9 +195,17 @@ module.exports = function(db_name) {
                                             else {
                                                 for (var i=0;i<deposited.length;i++) {
                                                     for (var j=0;j<withdrawn.length;j++) {
-                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == withdrawn[j].expiration_date)) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
+                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date !== null && withdrawn[j]._expiration_date !== null)) {
+                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                        else if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == null && withdrawn[j]._expiration_date == null)) {
+                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -245,9 +253,17 @@ module.exports = function(db_name) {
                                             else {
                                                 for (var i=0;i<deposited.length;i++) {
                                                     for (var j=0;j<withdrawn.length;j++) {
-                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == withdrawn[j].expiration_date)) {
-                                                            deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
-                                                            break;
+                                                        if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date !== null && withdrawn[j]._expiration_date !== null)) {
+                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
+                                                        }
+                                                        else if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == null && withdrawn[j]._expiration_date == null)) {
+                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                                deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
+                                                                break;
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -491,7 +507,6 @@ module.exports = function(db_name) {
                     module.get_current_inventory(retrieve_params)
                     .then(function(response) {
                         inventory = response;
-                        console.log(inventory);
                         mysql.use(db)
                         .query(
                             'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
@@ -527,7 +542,6 @@ module.exports = function(db_name) {
                     return callback();
                 }
                 
-                console.log(row.items);
                 if (row.items.length) {
                     current_location = row.location_id;
                     async.each(row.items, save_details, send_callback)
@@ -1653,203 +1667,60 @@ module.exports = function(db_name) {
     }
 
 
-    module.withdraw = (data) => {
+    module.withdraw = (params) => {
         return new Promise(function(resolve, reject) {
             
-            const datum = data[0];
-            let noLocation = 0;
+            let transaction_id = uuid.v4();
+            let movement = {};
 
-            function check_location(cb){
-    
-                for(let i=0; i<datum.items.length; i++){
-                    mysql.use(db)
-                        .query(
-                            'SELECT id FROM im_location WHERE id = ? AND deleted IS NULL',
-                            [datum.items[i].location_id],
-                            function(error, result) {
-                                if(error) {
-                                    reject(error);
-                                }else{
-                                    if(result.length==0){
-                                        noLocation = 1;                                        
-                                    }else{
-                                        datum.items[i].id = uuid.v4();
-                                        datum.items[i].user_id = datum.user_id;                                        
-                                        datum.items[i].franchise_id = datum.franchise_id;
-                                        datum.items[i].type = "WITHDRAW"
-    
-                                        if(datum.items[i].expiration_date == undefined){
-                                            datum.items[i].expiration_date = null
-                                        }
-    
-                                        if(datum.items[i].remarks == undefined){
-                                            datum.items[i].remarks = null
-                                        } 
-                                    }
-
-                                    if(i == datum.items.length-1 && noLocation == 0){
-                                        return cb(null,true);
-                                    }else if(i == datum.items.length-1 && noLocation == 1){
-                                        return cb(null,false);
-                                    }
-                                }
-                            }
-                        ).end();
-                }
-    
-            }
-
-            function check_quantity(cb) {   
-                
-                if(noLocation == 1){
-                    return cb(null,"nolocation");
-                }else{
-                
-                let hasExceed           = 0;
-                let hasZeroRemaining    = 0;
-                let hasZeroUserInput    = 0;
-                let counter             = 0;
-
-                datum.items.forEach(function(item, i) {
-
-                    let qry = '';
-
-                        if(item.expiration_date){
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND expiration_date= '+mysql.escape(item.expiration_date)+' AND deleted IS NULL';
-                        }else{
-                            qry = 'SELECT quantity, type FROM im_item_movement WHERE item_id = '+mysql.escape(item.item_id)+' AND location_id = '+mysql.escape(item.location_id)+' AND franchise_id ='+mysql.escape(item.franchise_id)+' AND deleted IS NULL';
+            mysql.use(db)
+            .query(
+                `INSERT INTO im_movement_transaction(id, user_id, type)
+                    VALUES (?, ?, "WITHDRAW")`,
+                    [transaction_id, params.user_id],
+                    function(err, res) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
                         }
-
-                    if(parseFloat(item.quantity) <= 0){
-                        hasZeroUserInput = 1;    
-                    }else{
-                        mysql.use(db)
-                        .query(
-                            qry,
-                            function(error, result) {
-                                if(error) {
-                                    reject(error);
-                                } else {
-                                    if(result.length == 0){
-                                        hasZeroUserInput = 1;
-                                    }else{
-
-                                        function getRemaining(cb2){
-
-                                            let deposit     = 0;
-                                            let withdraw    = 0;
-
-                                            for(let a=0; a < result.length; a++) {
-                                                if(result[a].type === "DEPOSIT") {
-                                                    deposit += parseFloat(result[a].quantity)
-                                                }else if(result[a].type === "WITHDRAW") {
-                                                    withdraw += parseFloat(result[a].quantity)
-                                                }
-                                                
-                                                if(a == result.length - 1) {
-                                                    let remaining = parseFloat(deposit) - parseFloat(withdraw);
-                                                    cb2(null, remaining)
-                                                }
-                                            }
-
-                                        }
-
-                                        async.series([getRemaining], (err, results) => {
-                                            if (err) {
-                                                reject(err)
-                                            }
-
-                                            let remainingbal = results[0];
-
-                                            switch (true) {
-                                                case (remainingbal <= 0)                          :   hasZeroRemaining = 1;
-                                                                                                    break;                                                
-                                                case (remainingbal < parseFloat(item.quantity))   :   hasExceed = 1;
-                                                                                                    break;
-                                                case (remainingbal >= parseFloat(item.quantity))  :   counter++;
-                                                                                                    break;                                      
-                                            }
-
-
-                                            if(counter == datum.items.length && i == datum.items.length-1){
-                                                return cb(null,true);
-                                            }else if (i == datum.items.length-1){
-                                                switch(true){ 
-                                                    case (hasExceed == 1)           : return cb(null, "exceed");
-                                                    case (hasZeroRemaining == 1)    : return cb(null,false);
-                                                    case (hasZeroUserInput == 1)    : return cb(null,false);   
-                                                    default                         : return cb(null,false);
-                                                }
-                                            }                                           
-
-                                        })
-
-                                    }
-                                }
-                            }
-                        ).end()
+                        else {
+                            async.each(params.items, insert_items, send_response);
+                        }
                     }
-                    
-                })
+            )
 
-                }                
+            function insert_items(row, callback) {
+                function send_callback(err, result) {
+                    if (err) {
+                        console.log('Error in creating item movement');
+                        return callback(err);
+                    }
+                    return callback();
+                }
+
+                mysql.use(db)
+                .query(
+                    `INSERT INTO im_item_movement
+                        (id, transaction_id, item_id, quantity, location_id, expiration_date, remarks, type, user_id) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, "WITHDRAW", ?)`, 
+                        [uuid.v4(), transaction_id, row.item_id, row.quantity, row.location_id, row.expiration_date, row.remarks, params.user_id],
+                        send_callback
+                )
             }
 
-    
-            async.series([check_location, check_quantity], (err, results) => {
+            function send_response(err, result) {
                 if (err) {
-                    reject(err)
+                    console.log(err);
+                    reject(err);
                 }
-                
-                if(results[0]==false || results[1]=="nolocation"){
-                    reject("Location not found no items were saved");
+                else {
+                    movement.user_id = params.user_id;
+                    movement.type = "WITHDRAW";
+                    movement.items = params.items;
+                    movement.message = "Withdraw successful";
+                    resolve(movement);
                 }
-
-                if(results[1]==false){
-                    reject("There is no quantity to withdraw");
-                }
-
-                if(results[1]==="exceed"){
-                    reject("Quantity to withdraw is higher than the remaining balance");
-                }
-
-                
-                if(results[0]==true && results[1]==true){
-                   
-                    const transaction_id = uuid.v4();
-
-                    mysql.use(db)
-                        .query(
-                            'INSERT INTO im_movement_transaction (id, franchise_id, user_id, type) VALUES (?,?,?, "WITHDRAW")',
-                            [transaction_id,datum.franchise_id,datum.user_id],
-                            function(err,res) {
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    for(let i=0; i<datum.items.length; i++) {
-                                        mysql.use(db)
-                                        .query(
-                                            'INSERT INTO im_item_movement (id, franchise_id, item_id, quantity, location_id, expiration_date, remarks, user_id, type,transaction_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                                            [datum.items[i].id,datum.items[i].franchise_id, datum.items[i].item_id, datum.items[i].quantity, datum.items[i].location_id, datum.items[i].expiration_date, datum.items[i].remarks, datum.items[i].user_id, datum.items[i].type,transaction_id],
-                                            function(err1, res1) {
-                                                if (err1) {
-                                                    reject(err1);
-                                                } else {
-                                                    if(i == datum.items.length-1) {
-                                                        resolve([datum.items, {message: "Items successfully withdrawn", transaction_id: transaction_id}]);
-                                                    }
-                                                }
-                                            }
-                                        )
-                                        .end();
-                                    }
-                                }
-                            }
-                        ).end()
-                }
-                
-            })
-            
+            }
         })
   
     }
