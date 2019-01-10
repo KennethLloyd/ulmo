@@ -832,12 +832,11 @@ module.exports = function(db_name) {
                     is_breakdown: 1,
                     is_grouped: 0,
                     page: -1, //to remove pagination in get_current_inventory
-                    user_id: params.user_id
                 }
     
                 module.get_current_inventory(retrieve_params)
                 .then(function(response) {
-                    send_response(response);
+                    send_response(response.items);
                 })
                 .catch(function(err) {           
                     console.log('Error in getting current inventory inside get expiration date');     
