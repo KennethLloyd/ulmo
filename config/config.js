@@ -13,6 +13,7 @@ module.exports = {
         allowed_methods: 'GET, POST, PUT, DELETE',
         allow_credentials: true
     },
+    
     GALADRIEL_DB: {
         host: '192.168.0.126',
         port: '3310',
