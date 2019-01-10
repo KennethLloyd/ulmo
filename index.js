@@ -57,51 +57,7 @@ module.exports = function(db_name) {
             pagination = "";
             
 
-            get_latest_balance_header();
-
-            function get_latest_balance_header() {
-                mysql.use(db)
-                    .query(
-                        'SELECT * FROM im_balance_history WHERE deleted IS NULL ORDER BY created DESC LIMIT 1',
-                        function(err, res) {
-                            if (err) {
-                                console.log(err);
-                                reject(err);
-                            }
-                            else if (!res.length) { //no previous balance
-                                latest_balance = [];
-                                balance_date = "0000-00-00";
-                                start();
-                            }
-                            else {
-                                balance_date = format_date(res[0].created);
-                                get_latest_balance_details(res[0].id);
-                            }
-                        }
-                    )
-            }
-
-            function get_latest_balance_details(balance_id) {
-                var details_params = {
-                    balance_id: balance_id,
-                    location_id: params.location_id,
-                    item_id: params.item_id, 
-                    search_item: params.search_item,
-                    is_breakdown: params.is_breakdown,
-                    is_grouped: params.is_grouped,
-                    page: -1, //to remove pagination in get_inventory
-                }
-
-                module.get_inventory(details_params)
-                    .then(function(response) {
-                        latest_balance = response;
-                        start();
-                    })
-                    .catch(function(err) {           
-                        console.log(err);
-                        reject(err);
-                    })
-            }
+            start();
 
             function start() {
                 if (params.is_breakdown == 1) { //default for specific locations
@@ -170,15 +126,15 @@ module.exports = function(db_name) {
                     //STOCK = SUM(deposited) - SUM(withdrawn)
                     mysql.use(db)
                     .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,
-                        [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,
+                        [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                         function(err1, res1) {
                             if (!err1) {
                                 deposited = res1;
                                 mysql.use(db)
                                 .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                                    [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                                    [row.location_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                                     function(err2, res2) {
                                         if (!err2) {
                                             withdrawn = res2;
@@ -202,7 +158,7 @@ module.exports = function(db_name) {
                                                             }
                                                         }
                                                         else if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == null && withdrawn[j]._expiration_date == null)) {
-                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                            if (deposited[i].expiration_date == withdrawn[j].expiration_date) {
                                                                 deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
                                                                 break;
                                                             }
@@ -228,15 +184,15 @@ module.exports = function(db_name) {
                     //STOCK = SUM(deposited) - SUM(withdrawn)
                     mysql.use(db)
                     .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                        [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                         function(err1, res1) {
                             if (!err1) {
                                 deposited = res1;
                                 mysql.use(db)
                                 .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                                    [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity' + exp_clause + ' FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.location_id = ? AND mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL ' + group_clause + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                                    [row.location_id, params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                                     function(err2, res2) {
                                         if (!err2) {
                                             withdrawn = res2;
@@ -260,7 +216,7 @@ module.exports = function(db_name) {
                                                             }
                                                         }
                                                         else if ((deposited[i].item_id == withdrawn[j].item_id) && (deposited[i].expiration_date == null && withdrawn[j]._expiration_date == null)) {
-                                                            if (format_date(deposited[i].expiration_date) == format_date(withdrawn[j].expiration_date)) {
+                                                            if (deposited[i].expiration_date == withdrawn[j].expiration_date) {
                                                                 deposited[i].item_quantity = (deposited[i].item_quantity - withdrawn[j].item_quantity);
                                                                 break;
                                                             }
@@ -302,15 +258,15 @@ module.exports = function(db_name) {
                     //STOCK = SUM(deposited) - SUM(withdrawn)
                     mysql.use(db)
                     .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                        ["%"+params.search_item+"%", "%"+params.search_item+"%"],
                         function(err1, res1) {
                             if (!err1) {
                                 deposited = res1;
                                 mysql.use(db)
                                 .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
-                                    ["%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
+                                    ["%"+params.search_item+"%", "%"+params.search_item+"%"],
                                     function(err2, res2) {
                                         if (!err2) {
                                             withdrawn = res2;
@@ -340,15 +296,15 @@ module.exports = function(db_name) {
                     //STOCK = SUM(deposited) - SUM(withdrawn)
                     mysql.use(db)
                     .query(
-                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
-                        [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                        'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "DEPOSIT" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination, 
+                        [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                         function(err1, res1) {
                             if (!err1) {
                                 deposited = res1;
                                 mysql.use(db)
                                 .query(
-                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?)  AND mv.created > ? AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
-                                    [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%", balance_date],
+                                    'SELECT mv.item_id, i.' + item_config.item_sku + ' AS item_sku, i.' + item_config.item_name + ' AS item_name, SUM(mv.quantity) AS item_quantity FROM im_item_movement mv, ' + item_config.item_table + ' i WHERE mv.item_id IN (?) AND mv.item_id = i.' + item_config.item_id + ' AND mv.type = "WITHDRAW" AND (i.' + item_config.item_name + ' LIKE ? OR i.' + item_config.item_sku + ' LIKE ?) AND mv.deleted IS NULL GROUP BY i.' + item_config.item_id + ' ORDER BY i.' + item_config.item_name + ' ' + pagination,  
+                                    [params.item_id, "%"+params.search_item+"%", "%"+params.search_item+"%"],
                                     function(err2, res2) {
                                         if (!err2) {
                                             withdrawn = res2;
@@ -381,6 +337,7 @@ module.exports = function(db_name) {
                     reject(err);
                 }
                 else {
+                    /*
                     //merge latest balance and latest item movements
                     for (var i=0;i<response.length;i++) {
                         for (var j=0;j<latest_balance.length;j++) {
@@ -402,11 +359,24 @@ module.exports = function(db_name) {
                             var items = response[x].items;
                             for (var i=0;i<items.length;i++) {
                                 for (var j=i+1;j<items.length;j++) { //add the quantity of matched items then add to the list
-                                    if ((params.is_grouped == 1 && (items[i].item_id == items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && items[i].expiration_date == items[j].expiration_date)) { //if is_grouped, no need to match with expiration dates
+                                    if ((params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && (items[i].expiration_date !== null && items[j]._expiration_date !== null))) {
+                                        if (format_date(items[i].expiration_date) == format_date(items[j].expiration_date)) {
+                                            items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
+                                            matched_items.push(items[i]);
+                                            break;
+                                        }
+                                    }
+                                    else if ((params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && (items[i].expiration_date == null && items[j]._expiration_date == null))) {
                                         items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
                                         matched_items.push(items[i]);
                                         break;
-                                    } 
+                                    }
+
+                                    else if (params.is_grouped == 1 && (items[i].item_id == items[j].item_id)) {
+                                        items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
+                                        matched_items.push(items[i]);
+                                        break;
+                                    }
                                 }
                             }
                             var final_items = matched_items;
@@ -414,10 +384,22 @@ module.exports = function(db_name) {
                             for (var i=0;i<items.length;i++) {
                                 var has_match = 0;
                                 for (var j=0;j<matched_items.length;j++) { //add the items that did not match to the list as is
-                                    if ((params.is_grouped == 1 && (items[i].item_id == matched_items[j].item_id)) || (params.is_grouped == 0 && (items[i].item_id == matched_items[j].item_id) && items[i].expiration_date == matched_items[j].expiration_date)) { //if is_grouped, no need to match with expiration dates
+                                    if ((params.is_grouped == 0 && (items[i].item_id == items[j].item_id) && (items[i].expiration_date !== null && items[j]._expiration_date !== null))) {
+                                        if (format_date(items[i].expiration_date) == format_date(matched_items[j].expiration_date)) {
+                                            has_match = 1;
+                                            break;
+                                        }
+                                    }
+                                    else if ((params.is_grouped == 0 && (items[i].item_id == matched_items[j].item_id) && (items[i].expiration_date == null && matched_items[j]._expiration_date == null))) {
                                         has_match = 1;
                                         break;
-                                    } 
+                                    }
+
+                                    else if (params.is_grouped == 1 && (items[i].item_id == matched_items[j].item_id)) {
+                                        items[i].item_quantity = (items[i].item_quantity + items[j].item_quantity);
+                                        has_match = 1;
+                                        break;
+                                    }
                                 }
                                 if (has_match == 0) {
                                     final_items.push(items[i])
@@ -436,6 +418,10 @@ module.exports = function(db_name) {
                             }
                             response[x].items = final_items;
                         }
+                    }*/
+                    inventory.total = response.length;
+                    if (params.page != -1) {
+                        response = paginate(response, params.limit, params.page);
                     }
                     inventory.items = response;
                     resolve(inventory);
@@ -505,7 +491,7 @@ module.exports = function(db_name) {
 
                 module.get_current_inventory(retrieve_params)
                 .then(function(response) {
-                    inventory = response;
+                    inventory = response.items;
                     mysql.use(db)
                     .query(
                         'INSERT INTO im_balance_history(id, label, user_id) VALUES (?,?,?);', 
@@ -535,7 +521,6 @@ module.exports = function(db_name) {
                     }
                     return callback();
                 }
-                
                 if (row.items.length) {
                     current_location = row.location_id;
                     async.each(row.items, save_details, send_callback)
