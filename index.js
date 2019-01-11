@@ -7,7 +7,7 @@ const winston           = require('winston');
 const async             = require("async");
 const uuid              = require("uuid");
 
-mysql.add('jeeves_db', config.JEEVES_DB);
+mysql.add('magento', config.GALADRIEL_DB);
 
 module.exports = function(db_name) {
     var module = {};
@@ -400,8 +400,8 @@ module.exports = function(db_name) {
                                 reject(err1);
                             }
                             else {
-                                async.each(inventory, prepare_save_details, send_response);
-                            }   
+                                resolve(async.each(inventory, prepare_save_details, send_response));
+                            }
                         }
                     )  
                 })

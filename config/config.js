@@ -13,26 +13,27 @@ module.exports = {
         allowed_methods: 'GET, POST, PUT, DELETE',
         allow_credentials: true
     },
-
-    JEEVES_DB: {
-        host: 'localhost',
-	    user: 'root',
-	    password: '',
-        database: 'sme_db'
+    
+    GALADRIEL_DB: {
+        host: '192.168.0.126',
+        port: '3310',
+        user: 'magento',
+        password: 'magento123',
+        database: 'magento'
     },
 
-    jeeves_db_item_config: {
-        item_table: 'material',
-        item_id: 'id',
-        item_sku: 'code',
-        item_name: 'name'
+    magento_item_config: {
+        item_table: 'catalog_product_entity',
+        item_id: 'entity_id',
+        item_sku: 'sku',
+        item_name: 'sku'
     },
 
-    jeeves_db_user_config: {
-        user_table: 'users',
-        user_id: 'id',
-        user_first_name: 'first_name',
-        user_last_name: 'last_name'
+    magento_user_config: {
+        user_table: 'admin_user',
+        user_id: 'user_id',
+        user_first_name: 'firstname',
+        user_last_name: 'lastname'
     }
     
 };
