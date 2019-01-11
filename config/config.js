@@ -15,7 +15,7 @@ module.exports = {
     },
 
     GALADRIEL_DB: {
-        host: '192.168.0.126',
+        host: '192.168.1.10',
         port: '3310',
 	    user: 'magento',
 	    password: 'magento123',
