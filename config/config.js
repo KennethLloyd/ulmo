@@ -25,7 +25,7 @@ module.exports = {
         item_table: 'catalog_product_entity',
         item_id: 'entity_id',
         item_sku: 'sku',
-        item_name: 'entity_id'
+        item_name: 'sku'
     },
     magento_user_config: {
         user_table: 'admin_user',
