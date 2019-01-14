@@ -21,7 +21,7 @@ module.exports = {
         password: 'magento123',
         database: 'magento'
     },
-    magento_db_item_config: {
+    magento_item_config: {
         item_table: 'catalog_product_entity',
         item_id: 'entity_id',
         item_sku: 'sku',
@@ -32,28 +32,5 @@ module.exports = {
         user_id: 'user_id',
         user_first_name: 'firstname',
         user_last_name: 'lastname'
-    },
-
-    GALADRIEL_DB: {
-        host: '192.168.1.10',
-        port: '3310',
-	      user: 'magento',
-	      password: 'magento123',
-        database: 'magento'
-    },
-
-    magento_db_item_config: {
-        item_table: 'catalog_product_entity',
-        item_id: 'entity_id',
-        item_sku: 'sku',
-        item_name: 'entity_id'
-    },
-
-    magento_db_user_config: {
-        user_table: 'admin_user',
-        user_id: 'user_id',
-        user_first_name: 'firstname',
-        user_last_name: 'lastname'
     }
-    
 };
