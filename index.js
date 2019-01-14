@@ -400,8 +400,8 @@ module.exports = function(db_name) {
                                 reject(err1);
                             }
                             else {
-                                async.each(inventory, prepare_save_details, send_response);
-                            }   
+                                resolve(async.each(inventory, prepare_save_details, send_response));
+                            }
                         }
                     )  
                 })
