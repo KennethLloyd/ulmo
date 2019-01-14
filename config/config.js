@@ -29,7 +29,7 @@ module.exports = {
         item_name: 'entity_id'
     },
 
-    magento_db_user_config: {
+    magento_user_config: {
         user_table: 'admin_user',
         user_id: 'user_id',
         user_first_name: 'firstname',
