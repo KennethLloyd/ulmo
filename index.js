@@ -756,6 +756,7 @@ module.exports = function(db_name) {
     }
 
     module.init_cyclecount = (params) => {
+        console.log(params)
         return new Promise(function(resolve, reject) {
             var report_id = uuid.v4();
             
@@ -798,12 +799,14 @@ module.exports = function(db_name) {
             function create_details(row, callback) {
                 function send_callback(err, result) {
                     if (err) {
+                        console.log(err)
+                        console.log(params)
                         console.log('Error in creating new cyclecount report details');
                         return callback(err);
                     }
                     return callback();
                 }
-                
+
                 mysql.use(db)
                 .query(
                     'INSERT INTO im_cycle_count_details(id, cycle_count_id, item_id, actual_quantity) VALUES (?,?,?,?)', 
@@ -819,7 +822,9 @@ module.exports = function(db_name) {
                 }
                 else {
                     params.report_id = report_id;
-                    resolve(params);
+                    console.log("res")
+                    console.log(res)
+                    resolve(res);
                 }
             }
         })
@@ -846,6 +851,7 @@ module.exports = function(db_name) {
                     reject("Error in retrieving pending cycle count");
                 }
                 else {
+                    console.log(res)
                     resolve(res);
                 }
             }
