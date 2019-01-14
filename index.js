@@ -756,6 +756,7 @@ module.exports = function(db_name) {
     }
 
     module.init_cyclecount = (params) => {
+        console.log(params)
         return new Promise(function(resolve, reject) {
             var report_id = uuid.v4();
             
@@ -798,12 +799,14 @@ module.exports = function(db_name) {
             function create_details(row, callback) {
                 function send_callback(err, result) {
                     if (err) {
+                        console.log(err)
+                        console.log(params)
                         console.log('Error in creating new cyclecount report details');
                         return callback(err);
                     }
                     return callback();
                 }
-                
+
                 mysql.use(db)
                 .query(
                     'INSERT INTO im_cycle_count_details(id, cycle_count_id, item_id, actual_quantity) VALUES (?,?,?,?)', 
@@ -819,7 +822,9 @@ module.exports = function(db_name) {
                 }
                 else {
                     params.report_id = report_id;
-                    resolve(params);
+                    console.log("res")
+                    console.log(res)
+                    resolve(res);
                 }
             }
         })
@@ -846,6 +851,7 @@ module.exports = function(db_name) {
                     reject("Error in retrieving pending cycle count");
                 }
                 else {
+                    console.log(res)
                     resolve(res);
                 }
             }
@@ -1141,27 +1147,29 @@ module.exports = function(db_name) {
             }
 
             function get_movements(row, callback) {
+                console.log(row)
                 function send_callback(err, result) {
                     if (err) {
                         console.log('Error in creating item movement');
                         return callback(err);
                     }
+                    console.log(result)
                     row['movements'] = result;
-                    items.push(row);
+                    if(result.length > 0) items.push(row);  
                     return callback();
                 }
 
                 mysql.use(db)
                 .query(
                     `SELECT mv.id, mv.item_id, mv.quantity,
-                    i.` + item_config.item_name + ` AS item_sku, i.` + item_config.item_name + ` AS item_name,
+                    i.` + item_config.item_sku + ` AS item_sku, i.` + item_config.item_name + ` AS item_name,
                         mv.location_id, l.code, l.name,
                         mv.expiration_date, mv.remarks
                         FROM im_item_movement mv, im_location l,
                         ` + item_config.item_table + ` i
                         WHERE mv.location_id = l.id
                         AND mv.item_id = i.` + item_config.item_id + `
-                        AND (i.` + item_config.item_name + ` LIKE ? OR i.` + item_config.item_name + ` LIKE ?)
+                        AND (i.` + item_config.item_name + ` LIKE ? OR i.` + item_config.item_sku + ` LIKE ?)
                         AND (l.name LIKE ? OR l.code LIKE ?)
                         AND mv.transaction_id = ?`,
                         ["%"+params.search_item+"%", "%"+params.search_item+"%", "%"+params.search_location+"%", "%"+params.search_location+"%", row.transaction_id],
@@ -1170,6 +1178,7 @@ module.exports = function(db_name) {
             }
 
             function send_response(err, res) {
+                console.log(res)
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -1184,6 +1193,7 @@ module.exports = function(db_name) {
                     else {
                         movement.total = 0;
                     }
+                    movement.total = items.length
                     movement.items = items;
                     resolve(movement);
                 }
