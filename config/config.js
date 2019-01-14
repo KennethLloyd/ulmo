@@ -13,19 +13,19 @@ module.exports = {
         allowed_methods: 'GET, POST, PUT, DELETE',
         allow_credentials: true
     },
-    
-    GALADRIEL_DB: {
-        host: '192.168.0.126',
+
+    MAGENTO_DB: {
+        host: '192.168.1.10',
         port: '3310',
         user: 'magento',
         password: 'magento123',
         database: 'magento'
     },
-    magento_item_config: {
+    magento_db_item_config: {
         item_table: 'catalog_product_entity',
         item_id: 'entity_id',
         item_sku: 'sku',
-        item_name: 'sku'
+        item_name: 'entity_id'
     },
     magento_user_config: {
         user_table: 'admin_user',
