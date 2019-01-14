@@ -7,7 +7,7 @@ const winston           = require('winston');
 const async             = require("async");
 const uuid              = require("uuid");
 
-mysql.add('magento', config.GALADRIEL_DB);
+mysql.add('magento', config.MAGENTO_DB);
 
 module.exports = function(db_name) {
     var module = {};
@@ -1543,7 +1543,6 @@ module.exports = function(db_name) {
         })
     }
 
-
     module.withdraw = (params) => {
         return new Promise(function(resolve, reject) {
             
@@ -1601,7 +1600,6 @@ module.exports = function(db_name) {
         })
   
     }
-
 
     module.transfer = (params) => {
         return new Promise(function(resolve, reject) {
