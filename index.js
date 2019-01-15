@@ -8,6 +8,7 @@ const async             = require("async");
 const uuid              = require("uuid");
 
 mysql.add('magento', config.MAGENTO_DB);
+mysql.add('galadriel', config.GALADRIEL_DB);
 
 module.exports = function(db_name) {
     var module = {};
