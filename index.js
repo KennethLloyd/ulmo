@@ -1186,6 +1186,7 @@ module.exports = function(db_name) {
                     else {
                         movement.total = 0;
                     }
+                    movement.total = items.length
                     movement.items = items;
                     resolve(movement);
                 }
