@@ -8,6 +8,7 @@ const async             = require("async");
 const uuid              = require("uuid");
 
 mysql.add('magento', config.MAGENTO_DB);
+mysql.add('galadriel', config.GALADRIEL_DB);
 
 module.exports = function(db_name) {
     var module = {};
@@ -756,7 +757,6 @@ module.exports = function(db_name) {
     }
 
     module.init_cyclecount = (params) => {
-        console.log(params)
         return new Promise(function(resolve, reject) {
             var report_id = uuid.v4();
             
@@ -799,14 +799,12 @@ module.exports = function(db_name) {
             function create_details(row, callback) {
                 function send_callback(err, result) {
                     if (err) {
-                        console.log(err)
-                        console.log(params)
                         console.log('Error in creating new cyclecount report details');
                         return callback(err);
                     }
                     return callback();
                 }
-
+                
                 mysql.use(db)
                 .query(
                     'INSERT INTO im_cycle_count_details(id, cycle_count_id, item_id, actual_quantity) VALUES (?,?,?,?)', 
@@ -822,9 +820,7 @@ module.exports = function(db_name) {
                 }
                 else {
                     params.report_id = report_id;
-                    console.log("res")
-                    console.log(res)
-                    resolve(res);
+                    resolve(params);
                 }
             }
         })
@@ -851,7 +847,6 @@ module.exports = function(db_name) {
                     reject("Error in retrieving pending cycle count");
                 }
                 else {
-                    console.log(res)
                     resolve(res);
                 }
             }
@@ -1147,7 +1142,6 @@ module.exports = function(db_name) {
             }
 
             function get_movements(row, callback) {
-                console.log(row)
                 function send_callback(err, result) {
                     if (err) {
                         console.log('Error in creating item movement');
@@ -1155,7 +1149,7 @@ module.exports = function(db_name) {
                     }
                     console.log(result)
                     row['movements'] = result;
-                    if(result.length > 0) items.push(row);  
+                    if(result.length > 0) items.push(row)
                     return callback();
                 }
 
@@ -1178,7 +1172,6 @@ module.exports = function(db_name) {
             }
 
             function send_response(err, res) {
-                console.log(res)
                 if (err) {
                     console.log(err);
                     reject(err);

@@ -25,9 +25,28 @@ module.exports = {
         item_table: 'catalog_product_entity',
         item_id: 'entity_id',
         item_sku: 'sku',
-        item_name: 'entity_id'
+        item_name: 'sku'
     },
     magento_user_config: {
+        user_table: 'admin_user',
+        user_id: 'user_id',
+        user_first_name: 'firstname',
+        user_last_name: 'lastname'
+    },
+    GALADRIEL_DB: {
+        host: '127.0.0.1',
+        port: '3306',
+        user: 'galadriel',
+        password: 'l0rdc3l3br0n',
+        database: 'galadriel'
+    },
+    galadriel_item_config: {
+        item_table: 'catalog_product_entity',
+        item_id: 'entity_id',
+        item_sku: 'sku',
+        item_name: 'sku'
+    },
+    galadriel_user_config: {
         user_table: 'admin_user',
         user_id: 'user_id',
         user_first_name: 'firstname',
