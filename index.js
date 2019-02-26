@@ -1621,7 +1621,7 @@ module.exports = function(db_name) {
                             reject(err);
                         }
                         else {
-                            async.each(params.items.items, insert_items, send_response);
+                            async.each(params.items, insert_items, send_response);
                         }
                     }
             )
