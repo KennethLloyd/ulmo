@@ -1507,7 +1507,7 @@ module.exports = function(db_name) {
                     return callback();
                 }
 
-                if (row.expiration_date == null || row.expiration_date == 'null' || row.expiration_date == '') {
+                if (row.expiration_date == undefined || row.expiration_date == null || row.expiration_date == 'null' || row.expiration_date == '') {
                     mysql.use(db)
                     .query(
                         `INSERT INTO im_item_movement
