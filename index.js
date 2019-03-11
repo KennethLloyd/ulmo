@@ -1200,7 +1200,7 @@ module.exports = function(db_name) {
             params.id = uuid.v4();
 
             let location = {};
-             
+            console.log(params);
             mysql.use(db)
             .query(
                 `SELECT * FROM im_location 
@@ -1222,18 +1222,18 @@ module.exports = function(db_name) {
                             if (params.status == false || params.status.toLowerCase() == "false") { //create a deactivated location
                                 mysql.use(db)
                                 .query(
-                                    `INSERT INTO im_location (id, code, name, description, user_id, deleted) 
-                                        VALUES (?, ?, ?, ?, ?, now())`,
-                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                    `INSERT INTO im_location (id, code, name, description, user_id, deleted,parent_id) 
+                                        VALUES (?, ?, ?, ?, ?,?, now())`,
+                                        [params.id, params.code, params.name, params.description, params.user_id,params.parent_id],
                                         send_response
                                 )
                             }
                             else { //create an activated location
                                 mysql.use(db)
                                 .query(
-                                    `INSERT INTO im_location (id, code, name, description, user_id) 
-                                        VALUES (?, ?, ?, ?, ?)`,
-                                        [params.id, params.code, params.name, params.description, params.user_id],
+                                    `INSERT INTO im_location (id, code, name, description, user_id,parent_id) 
+                                        VALUES (?, ?, ?, ?, ?,?)`,
+                                        [params.id, params.code, params.name, params.description, params.user_id,params.parent_id],
                                         send_response
                                 )
                             }
@@ -1314,19 +1314,32 @@ module.exports = function(db_name) {
             let location = {}; 
             mysql.use(db)
             .query(
-                `SELECT id, code, name, description, user_id,
-                    created AS date_created, 
-                    updated AS date_updated,
-                    deleted AS date_deleted 
-                    FROM im_location 
-                    WHERE id = ?`,
+                `SELECT 
+                    im_location.id, 
+                    im_location.code, 
+                    im_location.name, 
+                    im_location.description, 
+                    im_location.user_id,
+                    im_location.parent_id,
+                    im_location_1.code AS parent_code, 
+                    im_location_1.name AS parent_name, 
+                    im_location_1.description AS parent_description,
+                    im_location.created AS date_created, 
+                    im_location.updated AS date_updated,
+                    im_location.deleted AS date_deleted
+                    FROM im_location im_location
+                    LEFT JOIN im_location im_location_1
+                    ON im_location_1.id = im_location.parent_id
+                    WHERE im_location.id = ?`,
                     [params.id],
                     function(err, result) {
                         if (err) {
                             console.log(err);
                             reject(err);
                         }
-                        else{                        
+                        else{
+                            
+                            console.log('LOCATION RESULT:' ,result);
                             location.items = result;
                                 
                             resolve(location);
