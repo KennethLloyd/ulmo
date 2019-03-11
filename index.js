@@ -22,7 +22,7 @@ module.exports = function(db_name) {
             var latest_balance = [];
             var pagination = null;
             var balance_date = null;
-
+            let parent = '';
             let inventory = {};
 
             if (typeof params.search_item === 'undefined' || params.search_item === undefined) {
@@ -34,6 +34,8 @@ module.exports = function(db_name) {
             if (typeof params.is_grouped === 'undefined' || params.is_grouped === undefined) {
                 params.is_grouped = 1;
             }
+            if (params.parent_id)
+                parent = `l.parent_id = '${params.parent_id}' AND`;
 
             pagination = "";
             
@@ -45,7 +47,7 @@ module.exports = function(db_name) {
                     if (params.location_id.length === 0) {
                         mysql.use(db)
                         .query(
-                            'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name FROM im_location l WHERE l.deleted IS NULL ORDER BY l.name',
+                            `SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name FROM im_location l WHERE ${parent} l.deleted IS NULL ORDER BY l.name`,
                             function(err, res) {
                                 if (err) {
                                     console.log(err);
@@ -60,7 +62,7 @@ module.exports = function(db_name) {
                     else {
                         mysql.use(db)
                         .query(
-                            'SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name FROM im_location l WHERE l.id IN (?) AND l.deleted IS NULL ORDER BY l.name',
+                            `SELECT l.id AS location_id, l.code AS location_code, l.name AS location_name FROM im_location l WHERE l.id IN (?) AND ${parent} l.deleted IS NULL ORDER BY l.name`,
                             [params.location_id],
                             function(err, res) {
                                 if (err) {
