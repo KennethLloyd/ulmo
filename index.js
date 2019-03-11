@@ -1258,31 +1258,28 @@ module.exports = function(db_name) {
 
     module.retrieve_locations = (params) => {
         return new Promise(function(resolve, reject) {
-            let filter_query = ' ';
             let location = {};
 
-            if (params.filter_status == false || params.filter_status.toLowerCase() == "false") {
-                filter_query = ' AND deleted IS NOT NULL ';   
-            }
+            const filter_query = (params.filter_status == false || params.filter_status.toLowerCase() == "false")
+                ? ' AND im_c.deleted IS NOT NULL '
+                : ' AND im_c.deleted IS NULL ';
+            const p = `'%${params.search}%'`;
+            let where = `WHERE (im_c.code LIKE ${p} OR im_c.name LIKE ${p} OR im_p.code LIKE ${p} OR im_p.name LIKE ${p}) ${filter_query}`;
+            if (params.name) where = `${where} AND im_c.name = '${params.name}'`;
+            if (params.code) where = `${where} AND im_c.code = '${params.code}'`;
+            if (params.parent_name) where = `${where} AND im_p.name = '${params.parent_name}'`;
+            if (params.parent_code) where = `${where} AND im_p.code = '${params.parent_code}'`;
+            if (params.is_warehouse) where = params.is_warehouse === '1' ? `${where} AND im_c.parent_id IS NULL` : `${where} AND im_c.parent_id IS NOT NULL`;
 
-            else {
-                filter_query = ' AND deleted IS NULL ';     
-            }
-            
             mysql.use(db)
             .query(
-                `SELECT id, code, name, description, user_id,
-                    created AS date_created, 
-                    updated AS date_updated,
-                    deleted AS date_deleted,
-                    (SELECT COUNT(*) 
-                    FROM im_location 
-                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query + `) 
-                    AS total 
-                    FROM im_location
-                    WHERE (code LIKE ? OR name LIKE ?)` + filter_query + `
-                    LIMIT ?, ?`,
-                    ["%"+params.search+"%", "%"+params.search+"%", "%"+params.search+"%", "%"+params.search+"%", params.page, params.limit],
+                `SELECT im_c.id, im_c.code, im_c.name, im_c.description, im_c.user_id, im_c.parent_id,
+                    im_c.created AS date_created, im_c.updated AS date_updated, im_c.deleted AS date_deleted,
+                    im_p.code AS parent_code, im_p.name AS parent_name, im_p.description AS parent_description,
+                    (SELECT COUNT(*) FROM im_location im_c LEFT JOIN im_location im_p ON im_p.id = im_c.parent_id ${where} ) AS total 
+                    FROM im_location im_c
+                    LEFT JOIN im_location im_p ON im_p.id = im_c.parent_id
+                    ${where} LIMIT ${params.offset}, ${params.limit}`,
                     function(err, result) {
                         if (err) {
                             console.log(err);
@@ -1338,8 +1335,6 @@ module.exports = function(db_name) {
                             reject(err);
                         }
                         else{
-                            
-                            console.log('LOCATION RESULT:' ,result);
                             location.items = result;
                                 
                             resolve(location);
@@ -1634,7 +1629,7 @@ module.exports = function(db_name) {
                             reject(err);
                         }
                         else {
-                            async.each(params.items.items, insert_items, send_response);
+                            async.each(params.items, insert_items, send_response);
                         }
                     }
             )
