@@ -57,7 +57,7 @@ module.exports = {
         port: '3306',
         user: 'galadriel',
         password: 'l0rdc3l3br0n',
-        database: 'galadriel-mock'
+        database: 'galadriel_mock'
     },
     galadriel_mock_item_config: {
         item_table: 'catalog_product_entity',
