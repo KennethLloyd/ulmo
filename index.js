@@ -9,6 +9,7 @@ const uuid              = require("uuid");
 
 mysql.add('magento', config.MAGENTO_DB);
 mysql.add('galadriel', config.GALADRIEL_DB);
+mysql.add('galadriel_mock', config.GALADRIEL_MOCK_DB);
 
 module.exports = function(db_name) {
     var module = {};
