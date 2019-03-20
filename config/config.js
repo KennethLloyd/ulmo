@@ -72,10 +72,10 @@ module.exports = {
         user_last_name: 'lastname'
     },
     GALADRIEL_PROD_DB: {
-        host: '127.0.0.1',
+        host: 'galadriel.cbl3bfbjvpku.ap-southeast-1.rds.amazonaws.com',
         port: '3306',
         user: 'galadriel',
-        password: 'l0rdc3l3br0n',
+        password: 'pwd@galadriel33',
         database: 'galadriel'
     },
     galadriel_prod_item_config: {
