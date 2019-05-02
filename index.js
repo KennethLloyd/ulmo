@@ -57,7 +57,7 @@ module.exports = function(db_name) {
                                     async.each(res, fetch_items_breakdown, send_response); //get items for each location
                                 }
                             }
-                        )
+                        ).end();
                     }
                     else {
                         mysql.use(db)
@@ -73,7 +73,7 @@ module.exports = function(db_name) {
                                     async.each(res, fetch_items_breakdown, send_response); //get items for each location
                                 }
                             }
-                        )
+                        ).end();
                     }
                 }
                 else {
@@ -155,13 +155,13 @@ module.exports = function(db_name) {
                                             console.log(err2);
                                         }
                                     }
-                                )
+                                ).end();
                             }
                             else {
                                 console.log(err1);
                             }
                         }
-                    )
+                    ).end();
                 }
                 else { //specific items
                     //STOCK = SUM(deposited) - SUM(withdrawn)
@@ -214,12 +214,13 @@ module.exports = function(db_name) {
                                         }
                                     }
                                 )
+                                .end();
                             }
                             else {
                                 console.log(err1);
                             }
                         }
-                    )
+                    ).end();
                 }
             }
 
@@ -267,13 +268,13 @@ module.exports = function(db_name) {
                                             console.log(err2);
                                         }
                                     }
-                                )
+                                ).end();
                             }
                             else {
                                 console.log(err1);
                             }
                         }
-                    )
+                    ).end();
                 }
                 else { //specific items only
                     //STOCK = SUM(deposited) - SUM(withdrawn)
@@ -305,13 +306,13 @@ module.exports = function(db_name) {
                                             console.log(err2);
                                         }
                                     }
-                                )
+                                ).end();
                             }
                             else {
                                 console.log(err1);
                             }
                         }
-                    )
+                    ).end();
                 }
             }
 
@@ -1306,6 +1307,7 @@ module.exports = function(db_name) {
                         }
                     }
             )
+            .end();
 
         })
     }
