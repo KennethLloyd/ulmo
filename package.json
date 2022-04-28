@@ -22,7 +22,7 @@
   "dependencies": {
     "anytv-node-importer": "0.0.0",
     "anytv-node-mysql": "0.0.48",
-    "async": "^2.6.1",
+    "async": "^2.6.4",
     "apidoc": "^0.17.7",
     "crypto": "0.0.3",
     "file-stream-rotator": "0.0.7",
